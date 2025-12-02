@@ -13,8 +13,8 @@ import pandas as pd
 import spikeinterface as si
 
 # -------- Base folder paths --------
-# input_base_dir  = '/n/netscratch/bsabatini_lab/Lab/shliu/imec0/aind_input/todo'
-input_base_dir  = '/n/netscratch/bsabatini_lab/Lab/shliu/imec0/aind_input'
+input_base_dir  = '/n/netscratch/bsabatini_lab/Lab/shliu/imec0/aind_input/todo'
+# input_base_dir  = '/n/netscratch/bsabatini_lab/Lab/shliu/imec0/aind_input'
 output_base_dir = '/n/netscratch/bsabatini_lab/Lab/shliu/aind_output_scratch'
 
 # -------- Discover raw-recording subfolders and derive session names --------
