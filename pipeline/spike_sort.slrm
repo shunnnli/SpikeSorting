@@ -10,10 +10,10 @@
 #SBATCH --output=ephys-%N.%x.%j.out
 #SBATCH --error=ephys-%N.%x.%j.err
 
-DATA_PATH="/n/netscratch/bsabatini_lab/Lab/shliu/imec0/aind_input/todo/"
-WORK_DIR="/n/netscratch/bsabatini_lab/Lab/shliu/work_dir/"
+DATA_PATH="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_input/todo/"
+WORK_DIR="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/work_dir/"
 PIPELINE_PATH="./"
-RESULTS_PATH="/n/netscratch/bsabatini_lab/Lab/shliu/aind_output_scratch/"
+RESULTS_PATH="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_output_scratch/"
 
 
 CONTAINER_DIR="/n/holylfs06/LABS/kempner_shared/Everyone/workflow/ephys-spike-sorting-2024/containers"
