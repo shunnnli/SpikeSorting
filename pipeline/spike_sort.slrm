@@ -9,6 +9,7 @@
 #SBATCH --time=24:00:00
 #SBATCH --output=ephys-%N.%x.%j.out
 #SBATCH --error=ephys-%N.%x.%j.err
+#SBATCH --mail-user shunli@g.harvard.edu
 
 DATA_PATH="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_input/todo/"
 WORK_DIR="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/work_dir/"
