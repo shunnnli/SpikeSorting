@@ -155,7 +155,11 @@ fi
 
 # Run the AIND export / post-processing script once everything is done
 echo ""
-postprocess_script_path="${pipeline_code_dir%/}/postprocess/extract_aind_output.py"
+# The postprocess scripts live at the repository root under "postprocess",
+# while PIPELINE_PATH points to the "pipeline" subdirectory. So we take the
+# parent of pipeline_code_dir as the repo root.
+repo_root_dir=$(dirname "$pipeline_code_dir")
+postprocess_script_path="${repo_root_dir%/}/postprocess/extract_aind_output.py"
 if [ ! -f "$postprocess_script_path" ]; then
     echo "❌ Post-processing script not found at: $postprocess_script_path"
     echo "Please verify the location of extract_aind_output.py."
