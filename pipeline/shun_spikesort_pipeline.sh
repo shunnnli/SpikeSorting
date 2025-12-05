@@ -41,11 +41,13 @@ declare -a job_ids=()
 dir_data_array=( $(find "$top_dir" -mindepth 1 -maxdepth 1 -type d) )
 dir_array_length=${#dir_data_array[@]}
 
+echo ""
 echo "Found $dir_array_length data directories"
 echo "Generating $dir_array_length pipelines"
 
 for element in "${dir_data_array[@]}"
 do
+    echo ""
     echo "Processing directory: $element"
     folder_name=$(basename "$element")
 
@@ -109,12 +111,26 @@ if [ "${#job_ids[@]}" -gt 0 ]; then
     echo "Waiting for ${#job_ids[@]} spike-sorting jobs to finish before running post-processing..."
     while true; do
         all_done=true
+        running=0
+        pending=0
+        other=0
+        completed=0
         for jid in "${job_ids[@]}"; do
-            # If the job is still present in the queue, keep waiting
-            if squeue -h -j "$jid" 2>/dev/null | grep -q .; then
-                all_done=false
-                break
+            # Query SLURM for this job's state (e.g., PD, R, CG, etc.).
+            state=$(squeue -h -j "$jid" -o "%T" 2>/dev/null | head -n 1)
+
+            if [ -z "$state" ]; then
+                # Job no longer in the queue: treat as completed.
+                completed=$((completed + 1))
+                continue
             fi
+
+            all_done=false
+            case "$state" in
+                PD) pending=$((pending + 1)) ;;
+                R|CG) running=$((running + 1)) ;;
+                *) other=$((other + 1)) ;;
+            esac
         done
 
         if $all_done; then
@@ -122,14 +138,18 @@ if [ "${#job_ids[@]}" -gt 0 ]; then
             break
         fi
 
-        echo "Some jobs are still running or pending; sleeping for 60 seconds..."
+        echo "Job status: total=${#job_ids[@]}, running=${running}, pending=${pending}, completed=${completed}, other=${other}"
+        echo "Waiting for 60 seconds before next status check..."
         sleep 60
     done
 else
     echo "No job IDs were recorded; skipping wait step and running post-processing immediately."
 fi
 
+
+
 # Run the AIND export / post-processing script once everything is done
+echo ""
 postprocess_script_path="${pipeline_code_dir%/}/postprocess/extract_aind_output.py"
 if [ ! -f "$postprocess_script_path" ]; then
     echo "❌ Post-processing script not found at: $postprocess_script_path"
