@@ -78,10 +78,10 @@ do
     sed "s|^PIPELINE_PATH=.*|$new_pipeline_path|g" 3.tmp.slrm > "$job_slurm_script"
     rm 1.tmp.slrm 2.tmp.slrm 3.tmp.slrm
 
+    echo ""
     echo "Submitting $job_slurm_script"
     echo "  Data path: ${element}"
     echo "  Results path: ${out_dir%/}/${folder_name}_output"
-    echo ""
 
     sbatch_output=$(sbatch "$job_slurm_script")
     if [ $? -ne 0 ]; then
