@@ -203,3 +203,27 @@ if [ $post_status -ne 0 ]; then
 fi
 
 echo "✅ Post-processing completed successfully."
+
+
+# ================================
+# Copy per-session output folders to download location
+# ================================
+echo ""
+copy_dest_base="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_output_fordownload"
+echo "Copying session output folders to: $copy_dest_base"
+mkdir -p "$copy_dest_base"
+
+for element in "${dir_data_array[@]}"; do
+    folder_name=$(basename "$element")
+    src_folder="${out_dir%/}/${folder_name}_output"
+
+    if [ -d "$src_folder" ]; then
+        echo "  Copying $src_folder -> $copy_dest_base/"
+        cp -a "$src_folder" "$copy_dest_base/"
+    else
+        echo "  Skipping $folder_name: source output folder not found at $src_folder"
+    fi
+done
+
+echo "✅ Finished copying all available session output folders."
+

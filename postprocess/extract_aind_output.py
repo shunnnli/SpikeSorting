@@ -197,6 +197,12 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
 
     # Prepare AIND output dir
     AIND_folder = os.path.join(baseFolder, f'AIND_{session_name}')
+    # If we've already exported this session (based on presence of analysis_meta.json),
+    # skip re-running the full AIND export to save time.
+    sentinel_path = os.path.join(AIND_folder, "analysis_meta.json")
+    if os.path.exists(sentinel_path):
+        print(f"[skip] AIND export already exists for '{session_name}' at {AIND_folder}; skipping.")
+        continue
     os.makedirs(AIND_folder, exist_ok=True)
 
     # define subfolders
