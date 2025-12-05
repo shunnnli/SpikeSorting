@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Run on server with this command: pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm
+# Run on Kempner cluster with this command:
+# pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm
 
 # Input argument - Slurm job description file
 Slurm_file=$1
@@ -43,6 +44,17 @@ for element in "${dir_data_array[@]}"
 do
     echo "Processing directory: $element"
     folder_name=$(basename "$element")
+
+    # Check if this recording session already has spike-sorted output.
+    # We assume that if the session-specific RESULTS_PATH folder has a
+    # 'spikesorted' subdirectory, spike sorting has already completed.
+    existing_results_folder="${out_dir%/}/${folder_name}_output"
+    if [ -d "${existing_results_folder}/spikesorted" ]; then
+        echo "  Detected existing spike-sorted output at ${existing_results_folder}/spikesorted"
+        echo "  Skipping spike-sorting job for ${folder_name}; post-processing will still run."
+        echo ""
+        continue
+    fi
 
     new_data_path="DATA_PATH=\"${element}\""
     new_results_path="RESULTS_PATH=\"${out_dir%/}/${folder_name}_output\""
@@ -114,7 +126,7 @@ else
 fi
 
 # Run the AIND export / post-processing script once everything is done
-postprocess_script_path="${pipeline_code_dir%/}/../postprocess/extract_aind_output.py"
+postprocess_script_path="${pipeline_code_dir%/}/postprocess/extract_aind_output.py"
 if [ ! -f "$postprocess_script_path" ]; then
     echo "❌ Post-processing script not found at: $postprocess_script_path"
     echo "Please verify the location of extract_aind_output.py."

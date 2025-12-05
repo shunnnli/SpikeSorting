@@ -12,7 +12,7 @@
 
 DATA_PATH="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_input/todo/"
 WORK_DIR="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/work_dir/"
-PIPELINE_PATH="./"
+PIPELINE_PATH="pipeline/"
 RESULTS_PATH="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_output_scratch/"
 
 
