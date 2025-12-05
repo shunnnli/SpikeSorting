@@ -13,9 +13,16 @@ import pandas as pd
 import spikeinterface as si
 
 # -------- Base folder paths --------
-input_base_dir  = '/n/netscratch/bsabatini_lab/Lab/shliu/imec0/aind_input/todo'
-# input_base_dir  = '/n/netscratch/bsabatini_lab/Lab/shliu/imec0/aind_input'
-output_base_dir = '/n/netscratch/bsabatini_lab/Lab/shliu/aind_output_scratch'
+# Allow overriding the default locations via environment variables so the
+# pipeline script can drive which directory of recording sessions to process.
+input_base_dir  = os.environ.get(
+    'AIND_INPUT_BASE_DIR',
+    '/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_input/todo'
+)
+output_base_dir = os.environ.get(
+    'AIND_OUTPUT_BASE_DIR',
+    '/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_output_scratch'
+)
 
 # -------- Discover raw-recording subfolders and derive session names --------
 all_raw_folders = []

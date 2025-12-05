@@ -121,15 +121,35 @@ if [ ! -f "$postprocess_script_path" ]; then
     exit 1
 fi
 
-echo "Starting post-processing with: $postprocess_script_path"
+# Ensure extract_aind_output.py sees the directory containing all recording sessions.
+# This will make it process *every* recording session under this top-level directory.
+export AIND_INPUT_BASE_DIR="$top_dir"
+export AIND_OUTPUT_BASE_DIR="$out_dir"
 
-# Prefer python3 if available
-PYTHON_BIN="python"
-if command -v python3 >/dev/null 2>&1; then
-    PYTHON_BIN="python3"
+echo "Starting post-processing with: $postprocess_script_path"
+echo "  Using AIND_INPUT_BASE_DIR=${AIND_INPUT_BASE_DIR}"
+echo "  Using AIND_OUTPUT_BASE_DIR=${AIND_OUTPUT_BASE_DIR}"
+
+# Load cluster Python module and activate the mamba env "spikeinterface"
+if command -v module >/dev/null 2>&1; then
+    module load python || echo "⚠️ Failed to 'module load python'; please verify your module name."
 fi
 
-"$PYTHON_BIN" "$postprocess_script_path"
+if command -v mamba >/dev/null 2>&1; then
+    # Initialize mamba in this non-interactive shell and activate env
+    eval "$(mamba shell hook -s bash)" 2>/dev/null || true
+    mamba activate spikeinterface || echo "⚠️ Failed to activate mamba env 'spikeinterface'; assuming environment is already correct."
+else
+    echo "⚠️ 'mamba' command not found; assuming correct Python environment already active."
+fi
+
+# Use python3 explicitly for post-processing
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "❌ python3 not found in PATH; cannot run post-processing."
+    exit 1
+fi
+
+python3 "$postprocess_script_path"
 post_status=$?
 
 if [ $post_status -ne 0 ]; then
