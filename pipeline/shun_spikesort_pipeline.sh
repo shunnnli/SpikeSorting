@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Run on server with this command: pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm
+
 # Input argument - Slurm job description file
 Slurm_file=$1
 
