@@ -11,15 +11,19 @@ if [ -z "$Slurm_file" ]; then
   exit 1
 fi
 
-echo "Generating job submission files from the Slurm file: $Slurm_file"
+# Resolve the Slurm file to an absolute path so we don't accidentally
+# double-prefix it with the pipeline directory (e.g., pipeline/pipeline/...).
+Slurm_file_path=$(realpath "$Slurm_file")
+
+echo "Generating job submission files from the Slurm file: $Slurm_file_path"
 
 # Extract relevant paths from the Slurm file
-top_dir=$(grep "^DATA_PATH" "$Slurm_file" | sed "s/DATA_PATH=//g" | tr -d '"')
-work_dir=$(grep "^WORK_DIR" "$Slurm_file" | sed "s/WORK_DIR=//g" | tr -d '"')
-out_dir=$(grep "^RESULTS_PATH" "$Slurm_file" | sed "s/RESULTS_PATH=//g" | tr -d '"')
+top_dir=$(grep "^DATA_PATH" "$Slurm_file_path" | sed "s/DATA_PATH=//g" | tr -d '"')
+work_dir=$(grep "^WORK_DIR" "$Slurm_file_path" | sed "s/WORK_DIR=//g" | tr -d '"')
+out_dir=$(grep "^RESULTS_PATH" "$Slurm_file_path" | sed "s/RESULTS_PATH=//g" | tr -d '"')
 
 # Extract PIPELINE_PATH (expected to be "./" from your file)
-pipeline_path=$(grep "^PIPELINE_PATH" "$Slurm_file" | sed "s/PIPELINE_PATH=//g" | tr -d '"')
+pipeline_path=$(grep "^PIPELINE_PATH" "$Slurm_file_path" | sed "s/PIPELINE_PATH=//g" | tr -d '"')
 # Resolve relative PIPELINE_PATH to an absolute path (based on current directory)
 pipeline_code_dir=$(realpath "$pipeline_path")
 
@@ -67,8 +71,8 @@ do
     mkdir -p "$job_folder"
     cd "$job_folder"
 
-    # Copy the original Slurm file from the pipeline code directory
-    cp "$pipeline_code_dir/$Slurm_file" 1.tmp.slrm
+    # Copy the original Slurm file (using its absolute path)
+    cp "$Slurm_file_path" 1.tmp.slrm
     sed "s|^RESULTS_PATH=.*|$new_results_path|g" 1.tmp.slrm > 2.tmp.slrm
     sed "s|^DATA_PATH=.*|$new_data_path|g" 2.tmp.slrm > 3.tmp.slrm
     sed "s|^PIPELINE_PATH=.*|$new_pipeline_path|g" 3.tmp.slrm > "$job_slurm_script"
