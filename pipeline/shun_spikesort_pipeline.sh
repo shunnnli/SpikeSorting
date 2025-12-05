@@ -1,7 +1,12 @@
 #!/bin/bash
 
+# ================================
 # Run on Kempner cluster with this command:
+# tmux new -s spikesort
 # pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm
+# # detach with:  Ctrl-b d
+# # reattach later: tmux attach -t spikesort
+# ================================
 
 # Input argument - Slurm job description file
 Slurm_file=$1
