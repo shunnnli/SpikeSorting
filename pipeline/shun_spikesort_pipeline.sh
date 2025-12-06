@@ -16,6 +16,9 @@ if [ -z "$Slurm_file" ]; then
   exit 1
 fi
 
+# ================================
+# Generate job submission files
+# ================================
 # Resolve the Slurm file to an absolute path so we don't accidentally
 # double-prefix it with the pipeline directory (e.g., pipeline/pipeline/...).
 Slurm_file_path=$(realpath "$Slurm_file")
@@ -152,8 +155,9 @@ else
 fi
 
 
-
+# ================================
 # Run the AIND export / post-processing script once everything is done
+# ================================
 echo ""
 # The postprocess scripts live at the repository root under "postprocess",
 # while PIPELINE_PATH points to the "pipeline" subdirectory. So we take the
