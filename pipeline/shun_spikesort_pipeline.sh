@@ -4,7 +4,7 @@
 # Run on Kempner cluster with this command (tmux recommended for running in background):
 # tmux new -s spikesort
 # pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm
-# # detach with:  Ctrl-b d
+# # detach with:  Ctrl-b d (both mac and windows)
 # # reattach later: tmux attach -t spikesort
 # ================================
 
