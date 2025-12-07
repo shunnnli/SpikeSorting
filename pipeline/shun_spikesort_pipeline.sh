@@ -222,8 +222,11 @@ for element in "${dir_data_array[@]}"; do
     src_folder="${out_dir%/}/${folder_name}_output"
 
     if [ -d "$src_folder" ]; then
-        echo "  Copying $src_folder -> $copy_dest_base/"
-        cp -a "$src_folder" "$copy_dest_base/"
+        echo "  Copying $src_folder -> $copy_dest_base/ (following symlinks)"
+        # Use -L to follow symlinks so that the *contents* of linked folders
+        # are copied, not the symlinks themselves. This makes the download
+        # directory self-contained on your local machine.
+        cp -aL "$src_folder" "$copy_dest_base/"
     else
         echo "  Skipping $folder_name: source output folder not found at $src_folder"
     fi
