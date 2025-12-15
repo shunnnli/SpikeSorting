@@ -240,5 +240,5 @@ echo "✅ Finished copying all available session output folders."
 # ================================
 echo ""
 echo "Moving recording files from todo folder to the parent folder (aind_input)..."
-mv "$top_dir/todo" "$top_dir/.."
+mv "$top_dir/todo" "$top_dir/"
 echo "✅ Finished moving recording files from todo folder to the parent folder (aind_input)."
