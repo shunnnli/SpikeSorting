@@ -29,6 +29,7 @@ echo "Generating job submission files from the Slurm file: $Slurm_file_path"
 top_dir=$(grep "^DATA_PATH" "$Slurm_file_path" | sed "s/DATA_PATH=//g" | tr -d '"')
 work_dir=$(grep "^WORK_DIR" "$Slurm_file_path" | sed "s/WORK_DIR=//g" | tr -d '"')
 out_dir=$(grep "^RESULTS_PATH" "$Slurm_file_path" | sed "s/RESULTS_PATH=//g" | tr -d '"')
+backup_dir=$(grep "^BACKUP_PATH" "$Slurm_file_path" | sed "s/BACKUP_PATH=//g" | tr -d '"')
 
 # Extract PIPELINE_PATH (expected to be "./" from your file)
 pipeline_path=$(grep "^PIPELINE_PATH" "$Slurm_file_path" | sed "s/PIPELINE_PATH=//g" | tr -d '"')
@@ -240,5 +241,5 @@ echo "✅ Finished copying all available session output folders."
 # ================================
 echo ""
 echo "Moving recording files from todo folder to the parent folder (aind_input)..."
-mv "$top_dir/todo/*" "$top_dir/"
+mv "$top_dir" "$backup_dir"
 echo "✅ Finished moving recording files from todo folder to the parent folder (aind_input)."
