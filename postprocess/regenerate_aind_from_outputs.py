@@ -116,17 +116,15 @@ def _safe_rmtree(path: str):
 
 
 def _copytree_follow_symlinks(src: str, dst: str, force: bool):
-    if force and os.path.exists(dst):
+    """
+    Copy directory tree following symlinks (copying actual content, not symlinks).
+    If destination exists, always remove it first to ensure a complete, fresh copy.
+    """
+    if os.path.exists(dst):
         _safe_rmtree(dst)
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     # Follow symlinks by copying the referenced content (symlinks=False)
-    try:
-        shutil.copytree(src, dst, symlinks=False, dirs_exist_ok=True)
-    except TypeError:
-        # Python < 3.8 fallback (no dirs_exist_ok)
-        if os.path.exists(dst):
-            _safe_rmtree(dst)
-        shutil.copytree(src, dst, symlinks=False)
+    shutil.copytree(src, dst, symlinks=False)
 
 
 def regenerate_aind_for_session(base_folder: str, session_name: str, force: bool):
@@ -512,7 +510,8 @@ def main():
             if not args.no_copy:
                 dst = os.path.join(download_base_dir, os.path.basename(aind_folder))
                 print(f"  Copying AIND folder -> {dst}")
-                _copytree_follow_symlinks(aind_folder, dst, force=args.force)
+                # Always force a fresh copy to download directory (removes existing if present)
+                _copytree_follow_symlinks(aind_folder, dst, force=True)
         except Exception as e:
             failed += 1
             print(f"  [error] Failed session {session_dir_name}: {e}")
