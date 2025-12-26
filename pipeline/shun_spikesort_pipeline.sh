@@ -241,5 +241,9 @@ echo "✅ Finished copying all available session output folders."
 # ================================
 echo ""
 echo "Moving recording files from todo folder to the parent folder (aind_input)..."
-mv "$top_dir/*" "$backup_dir"
-echo "✅ Finished moving recording files from todo folder to the parent folder (aind_input)."
+if [ -d "$top_dir" ] && [ "$(ls -A "$top_dir" 2>/dev/null)" ]; then
+    mv "$top_dir"/* "$backup_dir" 2>/dev/null || true
+    echo "✅ Finished moving recording files from todo folder to the parent folder (aind_input)."
+else
+    echo "⚠️  No files to move (todo folder is empty or doesn't exist)."
+fi
