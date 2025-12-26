@@ -23,6 +23,7 @@ output_base_dir = os.environ.get(
     'AIND_OUTPUT_BASE_DIR',
     '/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_output_scratch'
 )
+skip_existing = False
 
 # -------- Discover raw-recording subfolders and derive session names --------
 all_raw_folders = []
@@ -198,9 +199,10 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
     # Prepare AIND output dir
     AIND_folder = os.path.join(baseFolder, f'AIND_{session_name}')
     # If we've already exported this session (based on presence of analysis_meta.json),
-    # skip re-running the full AIND export to save time.
+    # skip re-running the full AIND export to save time, unless the caller explicitly
+    # disables skipping via the AIND_SKIP_EXISTING_EXPORT environment variable.
     sentinel_path = os.path.join(AIND_folder, "analysis_meta.json")
-    if os.path.exists(sentinel_path):
+    if skip_existing and os.path.exists(sentinel_path):
         print(f"[skip] AIND export already exists for '{session_name}' at {AIND_folder}; skipping.")
         continue
     os.makedirs(AIND_folder, exist_ok=True)
