@@ -511,7 +511,7 @@ def main():
 
             if not args.no_copy:
                 dst = os.path.join(download_base_dir, os.path.basename(aind_folder))
-                print(f"  Copying AIND folder -> {dst} (following symlinks)")
+                print(f"  Copying AIND folder -> {dst}")
                 _copytree_follow_symlinks(aind_folder, dst, force=args.force)
         except Exception as e:
             failed += 1
