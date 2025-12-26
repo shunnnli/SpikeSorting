@@ -246,13 +246,7 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
 
         unit_ids    = sorting_curated.get_unit_ids()
         labels      = sorting_curated.get_property('decoder_label')
-        # default_qc is stored as a per-unit property in the curated sorting
-        # (see curated/.../properties/default_qc.npy). We read it here so it
-        # can be exported into cluster_group.tsv alongside the labels.
-        try:
-            default_qc_vals = sorting_curated.get_property('default_qc')
-        except Exception:
-            default_qc_vals = None
+        default_qc_vals = sorting_curated.get_property('default_qc')
         fs_hz    = sorting_curated.get_sampling_frequency()
         print(f"   → {len(unit_ids)} units")
 
@@ -309,8 +303,7 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
             'global_unit_ids': map_df['global_unit_ids'],
             'labels': labels
         })
-        if default_qc_vals is not None:
-            labels_df['default_qc'] = np.asarray(default_qc_vals)
+        labels_df['default_qc'] = np.asarray(default_qc_vals)
         unit_labels_combined.append(labels_df)
 
         # spikes (sample indices) per local unit, tagged with GLOBAL id

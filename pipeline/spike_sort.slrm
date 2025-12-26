@@ -34,6 +34,7 @@ CONTAINER_DIR=$CONTAINER_DIR DATA_PATH=$DATA_PATH RESULTS_PATH=$RESULTS_PATH nex
     --n_jobs 4 \
     --sorter kilosort4 \
     --runmode full \
-    --job_dispatch_args "--input $INPUT_DATA_TYPE" --preprocessing_args "--denoising cmr"
+    --job_dispatch_args "--input $INPUT_DATA_TYPE" --preprocessing_args "--denoising cmr" \
+    # --spikesorting_args "--time_range 0 -300"
   
     
