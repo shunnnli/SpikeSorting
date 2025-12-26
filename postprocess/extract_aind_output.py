@@ -244,8 +244,15 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
         sorting_curated  = si.load(os.path.join(curated, exp_base))
         spike_extractor  = si.load(os.path.join(spikes,   exp_base))
 
-        unit_ids = sorting_curated.get_unit_ids()
-        labels   = sorting_curated.get_property('decoder_label')
+        unit_ids    = sorting_curated.get_unit_ids()
+        labels      = sorting_curated.get_property('decoder_label')
+        # default_qc is stored as a per-unit property in the curated sorting
+        # (see curated/.../properties/default_qc.npy). We read it here so it
+        # can be exported into cluster_group.tsv alongside the labels.
+        try:
+            default_qc_vals = sorting_curated.get_property('default_qc')
+        except Exception:
+            default_qc_vals = None
         fs_hz    = sorting_curated.get_sampling_frequency()
         print(f"   → {len(unit_ids)} units")
 
@@ -296,11 +303,15 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
         qm_df = qm_df.merge(map_df, on='unit_ids', how='left')
         qm_combined_with_global_ids.append(qm_df)
 
-        # labels table
-        unit_labels_combined.append(pd.DataFrame({
+        # labels table (cluster_group.tsv). Always export labels; add default_qc
+        # column when available.
+        labels_df = pd.DataFrame({
             'global_unit_ids': map_df['global_unit_ids'],
             'labels': labels
-        }))
+        })
+        if default_qc_vals is not None:
+            labels_df['default_qc'] = np.asarray(default_qc_vals)
+        unit_labels_combined.append(labels_df)
 
         # spikes (sample indices) per local unit, tagged with GLOBAL id
         for local_id, global_id in zip(map_df['unit_ids'], map_df['global_unit_ids']):
@@ -518,7 +529,7 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
     ap_meta_path = ap_meta_candidates[0] if ap_meta_candidates else None
 
     analysis_meta = {
-        "notebook": "extract_aind_output_shijia_ks4.ipynb",
+        "notebook": "extract_aind_output.ipynb",
         "export_time_iso": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
         "paths": {
             "raw_folder": raw_rec,
