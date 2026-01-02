@@ -28,6 +28,10 @@ mamba activate /n/holylfs06/LABS/kempner_shared/Everyone/workflow/ephys-spike-so
 # --- Exclude last N seconds from the recording (default: 200 seconds) ---
 EXCLUDE_LAST_SEC="${EXCLUDE_LAST_SEC:-200}"
 
+# Export variables so they're available to Python subprocess
+export DATA_PATH
+export EXCLUDE_LAST_SEC
+
 # Compute duration from SpikeGLX meta files (fileTimeSecs=...)
 # Search recursively for *.ap.meta files (they may be in imec0/, imec1/ subdirectories)
 T_STOP=$(python3 - <<'PY'
