@@ -29,23 +29,28 @@ mamba activate /n/holylfs06/LABS/kempner_shared/Everyone/workflow/ephys-spike-so
 EXCLUDE_LAST_SEC="${EXCLUDE_LAST_SEC:-300}"
 
 # Compute duration from SpikeGLX meta files (fileTimeSecs=...)
+# Search recursively for *.ap.meta files (they may be in imec0/, imec1/ subdirectories)
 T_STOP=$(python3 - <<'PY'
 import glob, os
 
 data_path = os.environ["DATA_PATH"]
 exclude = float(os.environ.get("EXCLUDE_LAST_SEC", "300"))
 
-meta_files = sorted(glob.glob(os.path.join(data_path, "*.ap.meta")))
+# Search recursively for *.ap.meta files
+meta_files = sorted(glob.glob(os.path.join(data_path, "**", "*.ap.meta"), recursive=True))
 if not meta_files:
-    raise SystemExit(f"No *.ap.meta found in {data_path} (expected SpikeGLX AP meta files).")
+    raise SystemExit(f"No *.ap.meta found in {data_path} or subdirectories (expected SpikeGLX AP meta files).")
 
 durs = []
 for mf in meta_files:
-    with open(mf, "r") as f:
-        for line in f:
-            if line.startswith("fileTimeSecs"):
-                durs.append(float(line.split("=", 1)[1]))
-                break
+    try:
+        with open(mf, "r") as f:
+            for line in f:
+                if line.startswith("fileTimeSecs"):
+                    durs.append(float(line.split("=", 1)[1].strip()))
+                    break
+    except Exception as e:
+        continue  # skip files that can't be read
 
 if not durs:
     raise SystemExit(f"Could not parse fileTimeSecs from any *.ap.meta in {data_path}")
@@ -55,6 +60,12 @@ t_stop = max(0.0, dur - exclude)
 print(t_stop)
 PY
 )
+
+# Verify T_STOP was computed successfully
+if [ -z "$T_STOP" ] || ! [[ "$T_STOP" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+    echo "❌ Failed to compute T_STOP from *.ap.meta files. Cannot proceed."
+    exit 1
+fi
 
 echo "Cropping: keep [0, ${T_STOP}] seconds (excluding last ${EXCLUDE_LAST_SEC}s)"
 
