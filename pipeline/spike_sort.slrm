@@ -25,8 +25,8 @@ INPUT_DATA_TYPE="spikeglx"
 module load Mambaforge/23.11.0-fasrc01
 mamba activate /n/holylfs06/LABS/kempner_shared/Everyone/workflow/ephys-spike-sorting-2024/versions/latest/software/nextflow_v22.10.6
 
-# --- Exclude last N seconds from the recording (default: 5 minutes) ---
-EXCLUDE_LAST_SEC="${EXCLUDE_LAST_SEC:-300}"
+# --- Exclude last N seconds from the recording (default: 200 seconds) ---
+EXCLUDE_LAST_SEC="${EXCLUDE_LAST_SEC:-200}"
 
 # Compute duration from SpikeGLX meta files (fileTimeSecs=...)
 # Search recursively for *.ap.meta files (they may be in imec0/, imec1/ subdirectories)
@@ -34,7 +34,7 @@ T_STOP=$(python3 - <<'PY'
 import glob, os
 
 data_path = os.environ["DATA_PATH"]
-exclude = float(os.environ.get("EXCLUDE_LAST_SEC", "300"))
+exclude = float(os.environ.get("EXCLUDE_LAST_SEC", "200"))
 
 # Search recursively for *.ap.meta files
 meta_files = sorted(glob.glob(os.path.join(data_path, "**", "*.ap.meta"), recursive=True))
