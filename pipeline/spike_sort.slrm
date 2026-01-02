@@ -25,6 +25,43 @@ INPUT_DATA_TYPE="spikeglx"
 module load Mambaforge/23.11.0-fasrc01
 mamba activate /n/holylfs06/LABS/kempner_shared/Everyone/workflow/ephys-spike-sorting-2024/versions/latest/software/nextflow_v22.10.6
 
+# --- Exclude last N seconds from the recording (default: 5 minutes) ---
+EXCLUDE_LAST_SEC="${EXCLUDE_LAST_SEC:-300}"
+
+# Compute duration from SpikeGLX meta files (fileTimeSecs=...)
+T_STOP=$(python3 - <<'PY'
+import glob, os
+
+data_path = os.environ["DATA_PATH"]
+exclude = float(os.environ.get("EXCLUDE_LAST_SEC", "300"))
+
+meta_files = sorted(glob.glob(os.path.join(data_path, "*.ap.meta")))
+if not meta_files:
+    raise SystemExit(f"No *.ap.meta found in {data_path} (expected SpikeGLX AP meta files).")
+
+durs = []
+for mf in meta_files:
+    with open(mf, "r") as f:
+        for line in f:
+            if line.startswith("fileTimeSecs"):
+                durs.append(float(line.split("=", 1)[1]))
+                break
+
+if not durs:
+    raise SystemExit(f"Could not parse fileTimeSecs from any *.ap.meta in {data_path}")
+
+dur = min(durs)  # safest if multiple probes/streams differ slightly
+t_stop = max(0.0, dur - exclude)
+print(t_stop)
+PY
+)
+
+echo "Cropping: keep [0, ${T_STOP}] seconds (excluding last ${EXCLUDE_LAST_SEC}s)"
+
+# Build preprocessing args (add your other preprocessing flags here too)
+PREPROCESSING_ARGS="--denoising cmr --t-start 0 --t-stop ${T_STOP}"
+
+
 /n/holylfs06/LABS/kempner_shared/Everyone/workflow/ephys-spike-sorting-2024/cred/kachery_shared_setup.sh
 
 CONTAINER_DIR=$CONTAINER_DIR DATA_PATH=$DATA_PATH RESULTS_PATH=$RESULTS_PATH nextflow  -C $PIPELINE_PATH/nextflow_slurm.config \
@@ -35,7 +72,6 @@ CONTAINER_DIR=$CONTAINER_DIR DATA_PATH=$DATA_PATH RESULTS_PATH=$RESULTS_PATH nex
     --sorter kilosort4 \
     --runmode full \
     --job_dispatch_args "--input $INPUT_DATA_TYPE" \
-    --preprocessing_args "--denoising cmr" \
-    --spikesorting_args "--time_range 0 -300"
+    --preprocessing_args "$PREPROCESSING_ARGS" \
   
     
