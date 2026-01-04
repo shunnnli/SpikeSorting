@@ -26,9 +26,18 @@ module load Mambaforge/23.11.0-fasrc01
 mamba activate /n/holylfs06/LABS/kempner_shared/Everyone/workflow/ephys-spike-sorting-2024/versions/latest/software/nextflow_v22.10.6
 
 # --- Exclude last N seconds from the recording (default: 200 seconds) ---
-# Random4: 600s
-# Reward1: 350s
-EXCLUDE_LAST_SEC="${EXCLUDE_LAST_SEC:-350}"
+# Random4: 600s done
+# Reward1: 350s done
+# Reward2: 400s
+# Reward3:
+# Reward4: 250s
+# Punish1: 250s
+# Punish2: 250s
+# Punish3: 250s
+# Punish4: 250s
+# Reward5:
+# Punish5: 300s
+EXCLUDE_LAST_SEC="${EXCLUDE_LAST_SEC:-400}"
 
 # Export variables so they're available to Python subprocess
 export DATA_PATH
