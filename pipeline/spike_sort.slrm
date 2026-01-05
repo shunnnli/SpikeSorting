@@ -35,11 +35,11 @@ mamba activate /n/holylfs06/LABS/kempner_shared/Everyone/workflow/ephys-spike-so
 # Punish2: 250s         with 10ms: 198s done
 # Punish3: 250s         with 10ms: 176s done
 # Punish4: 250s         with 10ms: 204s done
-# Reward5: 305s         with 10ms: 255s
+# Reward5: 305s         with 10ms: 255s done
 # Punish5: 300s         with 10ms: 229s
 # Reward6: 380s         with 10ms: 314s
 # Punish6: 250s         with 10ms: 187s
-EXCLUDE_LAST_SEC="${EXCLUDE_LAST_SEC:-255}"
+EXCLUDE_LAST_SEC="${EXCLUDE_LAST_SEC:-229}"
 
 # Export variables so they're available to Python subprocess
 export DATA_PATH
