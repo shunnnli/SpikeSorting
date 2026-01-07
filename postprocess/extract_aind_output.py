@@ -7,10 +7,31 @@ import os
 import glob
 import json
 import time
+import argparse
 import platform
 import numpy as np
 import pandas as pd
 import spikeinterface as si
+
+# -------- Command-line arguments --------
+parser = argparse.ArgumentParser(
+    description="Extract AIND-format outputs from spike sorting results."
+)
+parser.add_argument(
+    '--session', '-s',
+    type=str,
+    default=None,
+    help="Path to a specific session output folder to process "
+         "(e.g., /path/to/aind_output_scratch/20251207-SL412-Reward1_g0_output/). "
+         "If not provided, discovers sessions from AIND_INPUT_BASE_DIR."
+)
+parser.add_argument(
+    '--skip-existing',
+    action='store_true',
+    default=False,
+    help="Skip sessions that already have an AIND export (analysis_meta.json exists)."
+)
+args = parser.parse_args()
 
 # -------- Base folder paths --------
 # Allow overriding the default locations via environment variables so the
@@ -23,25 +44,46 @@ output_base_dir = os.environ.get(
     'AIND_OUTPUT_BASE_DIR',
     '/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_output_scratch'
 )
-skip_existing = False
+skip_existing = args.skip_existing
 
 # -------- Discover raw-recording subfolders and derive session names --------
 all_raw_folders = []
 session_names   = []
 
-for item in sorted(os.listdir(input_base_dir)):
-    full_path = os.path.join(input_base_dir, item)
-    if not os.path.isdir(full_path):
-        continue
-
-    if item.endswith('_imec0') or item.endswith('_imec1'):
-        all_raw_folders.append(full_path)
-        session_names.append('_'.join(item.split('_')[:-1]))
+if args.session:
+    # --session mode: process a single specified output folder directly
+    session_path = args.session.rstrip('/')
+    if not os.path.isdir(session_path):
+        raise ValueError(f"Session path does not exist: {session_path}")
+    
+    # Derive session name from folder name (strip _output suffix if present)
+    folder_name = os.path.basename(session_path)
+    if folder_name.endswith('_output'):
+        session_name = folder_name[:-7]  # remove '_output'
     else:
-        for sd in sorted(os.listdir(full_path)):
-            if ('imec0' in sd or 'imec1' in sd) and os.path.isdir(os.path.join(full_path, sd)):
-                all_raw_folders.append(os.path.join(full_path, sd))
-                session_names.append(item)
+        session_name = folder_name
+    
+    # For --session mode, we set output_base_dir to the parent and use a dummy raw folder
+    output_base_dir = os.path.dirname(session_path)
+    all_raw_folders = [session_path]  # Use session path as placeholder for raw folder
+    session_names = [session_name]
+    print(f"[--session mode] Processing single session: {session_name}")
+    print(f"  Output folder: {session_path}")
+else:
+    # Default mode: discover sessions from input_base_dir
+    for item in sorted(os.listdir(input_base_dir)):
+        full_path = os.path.join(input_base_dir, item)
+        if not os.path.isdir(full_path):
+            continue
+
+        if item.endswith('_imec0') or item.endswith('_imec1'):
+            all_raw_folders.append(full_path)
+            session_names.append('_'.join(item.split('_')[:-1]))
+        else:
+            for sd in sorted(os.listdir(full_path)):
+                if ('imec0' in sd or 'imec1' in sd) and os.path.isdir(os.path.join(full_path, sd)):
+                    all_raw_folders.append(os.path.join(full_path, sd))
+                    session_names.append(item)
 
 # -------- Helpers --------
 def find_experiment_files(preproc_path):
@@ -186,7 +228,7 @@ def _fetch_templates_array(sa):
     # Fallback: assume SpikeInterface's default format is (units, samples, channels)
     # This is the standard format in SI 0.100+
     print(f"   [templates] WARNING: Could not determine axis order from params, assuming 'usc' (units, samples, channels)")
-    return arr, 'ucs'
+    return arr, 'usc'
 
 def _ptp_per_channel(template_unit, axis_mode):
     """Return per-channel peak-to-peak amplitude vector for one unit template."""
@@ -221,17 +263,22 @@ def _trough_to_peak_ms(wf_1d, fs_hz):
 for raw_rec, session_name in zip(all_raw_folders, session_names):
     print(f"\n=== Session: {session_name} ===")
 
-    # match session output folder
-    matches = [d for d in os.listdir(output_base_dir)
-               if session_name in d 
-               and os.path.isdir(os.path.join(output_base_dir, d))]
-    if not matches:
-        print(f"⚠️  No output folder found for '{session_name}' in {output_base_dir}, skipping.")
-        continue
+    if args.session:
+        # --session mode: use the provided path directly
+        baseFolder = args.session.rstrip('/')
+        print(f"→ using output folder (--session): {baseFolder}")
+    else:
+        # Default mode: match session output folder by name
+        matches = [d for d in os.listdir(output_base_dir)
+                   if session_name in d 
+                   and os.path.isdir(os.path.join(output_base_dir, d))]
+        if not matches:
+            print(f"⚠️  No output folder found for '{session_name}' in {output_base_dir}, skipping.")
+            continue
 
-    output_folder = sorted(matches)[0]
-    baseFolder    = os.path.join(output_base_dir, output_folder)
-    print(f"→ using output folder: {output_folder}")
+        output_folder = sorted(matches)[0]
+        baseFolder    = os.path.join(output_base_dir, output_folder)
+        print(f"→ using output folder: {output_folder}")
 
     # Prepare AIND output dir
     AIND_folder = os.path.join(baseFolder, f'AIND_{session_name}')
