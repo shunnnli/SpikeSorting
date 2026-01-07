@@ -38,8 +38,8 @@ mamba activate /n/holylfs06/LABS/kempner_shared/Everyone/workflow/ephys-spike-so
 # Reward5: 305s         with 10ms: 255s done
 # Punish5: 300s         with 10ms: 229s done
 # Reward6: 380s         with 10ms: 314s done
-# Punish6: 250s         with 10ms: 187s
-EXCLUDE_LAST_SEC="${EXCLUDE_LAST_SEC:-187}"
+# Punish6: 250s         with 10ms: 187s done
+EXCLUDE_LAST_SEC="${EXCLUDE_LAST_SEC:-281}"
 
 # Export variables so they're available to Python subprocess
 export DATA_PATH
@@ -87,7 +87,7 @@ fi
 echo "Cropping: keep [0, ${T_STOP}] seconds (excluding last ${EXCLUDE_LAST_SEC}s)"
 
 # Build preprocessing args (add your other preprocessing flags here too)
-PREPROCESSING_ARGS="--denoising cmr --t-start 0 --t-stop ${T_STOP}"
+PREPROCESSING_ARGS="--denoising cmr --t-start 0 --t-stop ${T_STOP} --no-remove-bad-channels"
 
 
 /n/holylfs06/LABS/kempner_shared/Everyone/workflow/ephys-spike-sorting-2024/cred/kachery_shared_setup.sh
