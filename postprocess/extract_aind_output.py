@@ -498,7 +498,7 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
                 wf_1d = _extract_best_channel_waveform(templates_arr, u_idx, best_ch, axis_mode).astype(np.float32)
                 t2p_ms = _trough_to_peak_ms(wf_1d, fs_hz)
 
-                print(f"   [best-channel] peak_channel={best_ch}, n_samples={n_samples_seg}, template_shape={templates_arr.shape}")
+                # print(f"   [best-channel] peak_channel={best_ch}, n_samples={n_samples_seg}, template_shape={templates_arr.shape}")
 
                 best_templates_all.append(wf_1d)
                 best_templates_meta.append({
