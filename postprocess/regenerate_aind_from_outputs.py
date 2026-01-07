@@ -508,7 +508,9 @@ def main():
             ok += 1
 
             if not args.no_copy:
-                dst = os.path.join(download_base_dir, os.path.basename(aind_folder))
+                # Put AIND folder inside {session_name}_output in download directory
+                session_download_dir = os.path.join(download_base_dir, f"{session_name}_output")
+                dst = os.path.join(session_download_dir, os.path.basename(aind_folder))
                 print(f"  Copying AIND folder -> {dst}")
                 # Always force a fresh copy to download directory (removes existing if present)
                 _copytree_follow_symlinks(aind_folder, dst, force=True)
