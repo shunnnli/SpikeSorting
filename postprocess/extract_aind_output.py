@@ -210,23 +210,23 @@ def _fetch_templates_array(sa):
         pass
     
     # Debug output to help diagnose issues
-    print(f"   [templates] shape={arr.shape}, n_samples_expected={n_samples_expected}, n_channels_expected={n_channels_expected}")
+    # print(f"   [templates] shape={arr.shape}, n_samples_expected={n_samples_expected}, n_channels_expected={n_channels_expected}")
     
     # Determine axis order based on explicit parameters
     if n_samples_expected is not None:
         if a1 == n_samples_expected:
-            print(f"   [templates] axis order: (units, samples, channels)")
+            print(f"   [templates] Determinedaxis order: (units, samples, channels), shape={arr.shape}")
             return arr, 'usc'  # (units, samples, channels)
         elif a2 == n_samples_expected:
-            print(f"   [templates] axis order: (units, channels, samples)")
+            print(f"   [templates] Determined axis order: (units, channels, samples), shape={arr.shape}")
             return arr, 'ucs'  # (units, channels, samples)
     
     if n_channels_expected is not None:
         if a2 == n_channels_expected:
-            print(f"   [templates] axis order: (units, samples, channels)")
+            print(f"   [templates] Determined axis order: (units, samples, channels), shape={arr.shape}")
             return arr, 'usc'  # (units, samples, channels)
         elif a1 == n_channels_expected:
-            print(f"   [templates] axis order: (units, channels, samples)")
+            print(f"   [templates] Determined axis order: (units, channels, samples), shape={arr.shape}")
             return arr, 'ucs'  # (units, channels, samples)
     
     # Fallback: assume SpikeInterface's default format is (units, samples, channels)
@@ -436,6 +436,7 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
         # === BEST-CHANNEL TEMPLATES + T2P per segment ===
         # 1) Fetch templates array
         templates_arr, axis_mode = _fetch_templates_array(sorting_analyzer)
+        print(f"   [best-channel] templates_arr shape={templates_arr.shape}, axis_mode={axis_mode}")
         if templates_arr is None:
             print("   (info) templates array not available; skipping best-channel export for this segment.")
         else:
