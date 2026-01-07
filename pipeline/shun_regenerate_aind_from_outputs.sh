@@ -15,8 +15,9 @@
 #   pipeline/shun_regenerate_aind_from_outputs.sh pipeline/spike_sort.slrm
 #   pipeline/shun_regenerate_aind_from_outputs.sh /path/to/aind_output_scratch
 #
-# Set FORCE=1 to delete/recreate existing AIND_* folders:
-#   FORCE=1 pipeline/shun_regenerate_aind_from_outputs.sh
+# FORCE defaults to 1 (delete/recreate existing AIND_* folders).
+# Set FORCE=0 to skip existing folders:
+#   FORCE=0 pipeline/shun_regenerate_aind_from_outputs.sh
 # ============================================
 
 set -euo pipefail
@@ -83,7 +84,7 @@ echo ""
 echo "Starting regeneration..."
 
 FORCE_FLAG=""
-if [ "${FORCE:-0}" = "1" ]; then
+if [ "${FORCE:-1}" = "1" ]; then
     FORCE_FLAG="--force"
 fi
 
