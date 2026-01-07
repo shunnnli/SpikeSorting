@@ -495,6 +495,7 @@ def main():
     skipped = 0
     failed = 0
 
+    # Process each session directory
     for session_dir in session_dirs:
         session_dir_name = os.path.basename(session_dir)
         session_name = session_dir_name[:-7] if session_dir_name.endswith("_output") else session_dir_name
