@@ -215,18 +215,18 @@ def _fetch_templates_array(sa):
     # Determine axis order based on explicit parameters
     if n_samples_expected is not None:
         if a1 == n_samples_expected:
-            print(f"   [templates] Determinedaxis order: (units, samples, channels), shape={arr.shape}")
+            # print(f"   [templates] Determinedaxis order: (units, samples, channels), shape={arr.shape}")
             return arr, 'usc'  # (units, samples, channels)
         elif a2 == n_samples_expected:
-            print(f"   [templates] Determined axis order: (units, channels, samples), shape={arr.shape}")
+            # print(f"   [templates] Determined axis order: (units, channels, samples), shape={arr.shape}")
             return arr, 'ucs'  # (units, channels, samples)
     
     if n_channels_expected is not None:
         if a2 == n_channels_expected:
-            print(f"   [templates] Determined axis order: (units, samples, channels), shape={arr.shape}")
+            # print(f"   [templates] Determined axis order: (units, samples, channels), shape={arr.shape}")
             return arr, 'usc'  # (units, samples, channels)
         elif a1 == n_channels_expected:
-            print(f"   [templates] Determined axis order: (units, channels, samples), shape={arr.shape}")
+            # print(f"   [templates] Determined axis order: (units, channels, samples), shape={arr.shape}")
             return arr, 'ucs'  # (units, channels, samples)
     
     # Fallback: assume SpikeInterface's default format is (units, samples, channels)
@@ -497,6 +497,8 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
                 best_ch = int(local_to_peak.get(u_local, 0))
                 wf_1d = _extract_best_channel_waveform(templates_arr, u_idx, best_ch, axis_mode).astype(np.float32)
                 t2p_ms = _trough_to_peak_ms(wf_1d, fs_hz)
+
+                print(f"   [best-channel] peak_channel={best_ch}, n_samples={n_samples_seg}, template_shape={templates_arr.shape}")
 
                 best_templates_all.append(wf_1d)
                 best_templates_meta.append({
