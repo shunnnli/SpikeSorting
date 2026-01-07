@@ -194,7 +194,7 @@ def _fetch_templates_array(sa):
     n_units_arr, a1, a2 = arr.shape
     
     # Try to get expected n_samples from templates extension params
-    n_samples_expected = None
+    n_samples_expected = 210
     try:
         params = ext.params
         if 'nbefore' in params and 'nafter' in params:
@@ -215,14 +215,18 @@ def _fetch_templates_array(sa):
     # Determine axis order based on explicit parameters
     if n_samples_expected is not None:
         if a1 == n_samples_expected:
+            print(f"   [templates] axis order: (units, samples, channels)")
             return arr, 'usc'  # (units, samples, channels)
         elif a2 == n_samples_expected:
+            print(f"   [templates] axis order: (units, channels, samples)")
             return arr, 'ucs'  # (units, channels, samples)
     
     if n_channels_expected is not None:
         if a2 == n_channels_expected:
+            print(f"   [templates] axis order: (units, samples, channels)")
             return arr, 'usc'  # (units, samples, channels)
         elif a1 == n_channels_expected:
+            print(f"   [templates] axis order: (units, channels, samples)")
             return arr, 'ucs'  # (units, channels, samples)
     
     # Fallback: assume SpikeInterface's default format is (units, samples, channels)
