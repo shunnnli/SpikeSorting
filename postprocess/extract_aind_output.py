@@ -146,15 +146,47 @@ def _fetch_templates_array(sa):
         except Exception: pass
     if not (isinstance(arr, np.ndarray) and arr.ndim == 3):
         return None, None
-    # Decide axis order by comparing dimensions.
-    # Typically n_channels > n_samples (e.g., 384 channels vs ~90 samples).
-    a1, a2 = arr.shape[1], arr.shape[2]
-    if a1 < a2:
-        # a1 smaller (samples), a2 larger (channels) → (units, samples, channels)
-        return arr, 'usc'
-    else:
-        # a1 larger (channels), a2 smaller (samples) → (units, channels, samples)
-        return arr, 'ucs'
+
+    # Determine axis order using explicit parameters from SpikeInterface,
+    # NOT by guessing from array shape (which is unreliable).
+    n_units_arr, a1, a2 = arr.shape
+    
+    # Try to get expected n_samples from templates extension params
+    n_samples_expected = None
+    try:
+        params = ext.params
+        if 'nbefore' in params and 'nafter' in params:
+            n_samples_expected = params['nbefore'] + params['nafter']
+    except Exception:
+        pass
+    
+    # Try to get expected n_channels from the recording (default 384 for Neuropixels)
+    n_channels_expected = 384
+    try:
+        n_channels_expected = sa.get_num_channels()
+    except Exception:
+        pass
+    
+    # Debug output to help diagnose issues
+    print(f"   [templates] shape={arr.shape}, n_samples_expected={n_samples_expected}, n_channels_expected={n_channels_expected}")
+    
+    # Determine axis order based on explicit parameters
+    if n_samples_expected is not None:
+        if a1 == n_samples_expected:
+            return arr, 'usc'  # (units, samples, channels)
+        elif a2 == n_samples_expected:
+            return arr, 'ucs'  # (units, channels, samples)
+    
+    if n_channels_expected is not None:
+        if a2 == n_channels_expected:
+            return arr, 'usc'  # (units, samples, channels)
+        elif a1 == n_channels_expected:
+            return arr, 'ucs'  # (units, channels, samples)
+    
+    # Fallback: assume SpikeInterface's default format is (units, samples, channels)
+    # This is the standard format in SI 0.100+
+    print(f"   [templates] WARNING: Could not determine axis order from params, assuming 'usc' (units, samples, channels)")
+    return arr, 'usc'
 
 def _ptp_per_channel(template_unit, axis_mode):
     """Return per-channel peak-to-peak amplitude vector for one unit template."""
