@@ -186,7 +186,7 @@ def _fetch_templates_array(sa):
     # Fallback: assume SpikeInterface's default format is (units, samples, channels)
     # This is the standard format in SI 0.100+
     print(f"   [templates] WARNING: Could not determine axis order from params, assuming 'usc' (units, samples, channels)")
-    return arr, 'usc'
+    return arr, 'ucs'
 
 def _ptp_per_channel(template_unit, axis_mode):
     """Return per-channel peak-to-peak amplitude vector for one unit template."""
