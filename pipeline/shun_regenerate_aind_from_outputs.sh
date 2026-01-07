@@ -60,7 +60,7 @@ echo "Regenerating AIND outputs from:"
 echo "  OUT_DIR        : $OUT_DIR"
 echo "  DOWNLOAD_BASE  : $DOWNLOAD_BASE"
 echo "  PY_SCRIPT      : $PY_SCRIPT"
-echo "  FORCE          : ${FORCE:-0}"
+echo "  FORCE          : ${FORCE:-1}"
 
 # Load cluster Python module and activate the mamba env "spikeinterface"
 if command -v module >/dev/null 2>&1; then
