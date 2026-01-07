@@ -119,8 +119,10 @@ def check_template_metrics_merge(aind_folder):
 def _fetch_templates_array(sa):
     """
     Try several access paths across SI 0.102.x.
-    Return a numpy array with shape (n_units, n_samples, n_channels) if possible,
-    or (n_units, n_channels, n_samples). Also return string axis_mode: 'ucs' or 'usc'.
+    Return a numpy array with shape (n_units, n_samples, n_channels) or
+    (n_units, n_channels, n_samples). Also return string axis_mode:
+      - 'usc' = (units, samples, channels)
+      - 'ucs' = (units, channels, samples)
     """
     try:
         sa.load_extension('templates')
@@ -144,26 +146,29 @@ def _fetch_templates_array(sa):
         except Exception: pass
     if not (isinstance(arr, np.ndarray) and arr.ndim == 3):
         return None, None
-    # decide axis order
-    # (units, ?, ?) where one axis is samples (usually >= 30), the other is channels (<= 512)
+    # Decide axis order by comparing dimensions.
+    # Typically n_channels > n_samples (e.g., 384 channels vs ~90 samples).
     a1, a2 = arr.shape[1], arr.shape[2]
-    if a1 <= 512 and a2 > 32:
-        return arr, 'usc'  # (units, channels, samples)
+    if a1 < a2:
+        # a1 smaller (samples), a2 larger (channels) → (units, samples, channels)
+        return arr, 'usc'
     else:
-        return arr, 'ucs'  # (units, samples, channels)
+        # a1 larger (channels), a2 smaller (samples) → (units, channels, samples)
+        return arr, 'ucs'
 
 def _ptp_per_channel(template_unit, axis_mode):
     """Return per-channel peak-to-peak amplitude vector for one unit template."""
-    if axis_mode == 'ucs':   # (samples, channels)
-        # template_unit shape: (n_samples, n_channels)
+    if axis_mode == 'usc':   # 'usc' -> (samples, channels)
+        # template_unit shape: (n_samples, n_channels); max/min along axis=0
         return (template_unit.max(axis=0) - template_unit.min(axis=0))
-    else:                     # 'usc' -> (channels, samples)
+    else:                     # 'ucs' -> (channels, samples)
+        # template_unit shape: (n_channels, n_samples); max/min along axis=1
         return (template_unit.max(axis=1) - template_unit.min(axis=1))
 
 def _extract_best_channel_waveform(templates_arr, unit_index, best_ch, axis_mode):
-    if axis_mode == 'ucs':   # (units, samples, channels)
+    if axis_mode == 'usc':   # (units, samples, channels)
         return templates_arr[unit_index, :, best_ch]
-    else:                     # (units, channels, samples)
+    else:                     # 'ucs' -> (units, channels, samples)
         return templates_arr[unit_index, best_ch, :]
 
 def _trough_to_peak_ms(wf_1d, fs_hz):
@@ -382,13 +387,10 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
 
             # If no peak_col information, compute channel PTP and pick argmax
             if peak_col is None:
-                # templates_arr shape: (units, S, C) or (units, C, S)
+                # templates_arr shape: 'usc' = (units, S, C) or 'ucs' = (units, C, S)
                 # We assume the unit order follows sorting_curated.get_unit_ids()
                 for u_idx, u_local in enumerate(unit_ids):
-                    if axis_mode == 'ucs':
-                        unit_template = templates_arr[u_idx, :, :]   # (S, C)
-                    else:
-                        unit_template = templates_arr[u_idx, :, :]   # (C, S)
+                    unit_template = templates_arr[u_idx, :, :]  # (S, C) or (C, S)
                     ptp_vec = _ptp_per_channel(unit_template, axis_mode)
                     best_ch = int(np.argmax(ptp_vec))
                     map_local.loc[map_local['unit_id'] == u_local, 'peak_channel'] = best_ch
@@ -399,9 +401,9 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
             local_to_peak   = dict(zip(map_local['unit_id'].tolist(), map_local['peak_channel'].astype(int).tolist()))
 
             # n_samples from templates
-            if axis_mode == 'ucs':
+            if axis_mode == 'usc':  # (units, samples, channels)
                 n_samples_seg = int(templates_arr.shape[1])
-            else:
+            else:                   # 'ucs' = (units, channels, samples)
                 n_samples_seg = int(templates_arr.shape[2])
 
             for u_idx, u_local in enumerate(unit_ids):
