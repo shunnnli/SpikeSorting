@@ -615,7 +615,7 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
 
     merged.to_csv(os.path.join(AIND_folder, 'cluster_info.tsv'), sep='\t', index=False)
     print("🎯 Wrote: spike_times.npy, spike_clusters.npy, cluster_group.tsv, cluster_info.tsv (+ template_metrics.tsv, best_channel_templates.npy)")
-    print(f"   [best-channel] unique peak_channel values: {merged['peak_channel'].unique()}")
+    # print(f"   [best-channel] unique peak_channel values: {merged['peak_channel'].unique()}")
 
     # -------- analysis_meta.json (provenance; complements ap.meta) --------
     ap_meta_candidates = glob.glob(os.path.join(raw_rec, "*ap.meta"))
