@@ -523,8 +523,8 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
                       if unit_labels_combined else pd.DataFrame())
     qm_combined_df = (pd.concat(qm_combined_with_global_ids, ignore_index=True)
                       if qm_combined_with_global_ids else pd.DataFrame())
-    print("Keys in cluster_group.tsv:", unit_labels_df.columns.tolist())
-    print("Keys in cluster_info.tsv:", qm_combined_df.columns.tolist())
+    # print("Keys in cluster_group.tsv:", unit_labels_df.columns.tolist())
+    # print("Keys in cluster_info.tsv:", qm_combined_df.columns.tolist())
 
     # -------- Save the three core artifacts --------
     spike_times    = np.array(all_spike_times)      # samples
