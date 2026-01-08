@@ -498,7 +498,7 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
                 wf_1d = _extract_best_channel_waveform(templates_arr, u_idx, best_ch, axis_mode).astype(np.float32)
                 t2p_ms = _trough_to_peak_ms(wf_1d, fs_hz)
 
-                print(f"   [best-channel] peak_channel={best_ch}, n_samples={n_samples_seg}, template_shape={templates_arr.shape}")
+                # print(f"   [best-channel] peak_channel={best_ch}, n_samples={n_samples_seg}, template_shape={templates_arr.shape}")
 
                 best_templates_all.append(wf_1d)
                 best_templates_meta.append({
@@ -513,10 +513,10 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
         total_units += len(unit_ids)
 
     print(f" ✅ Total units: {total_units}")
-    if len(best_templates_meta) > 0:
-        peak_channels = [m.get('peak_channel') for m in best_templates_meta if 'peak_channel' in m]
-        unique_peaks = sorted(set(peak_channels)) if peak_channels else []
-        print(f"   [best-channel] unique peak_channel values: {unique_peaks}")
+    # if len(best_templates_meta) > 0:
+    #     peak_channels = [m.get('peak_channel') for m in best_templates_meta if 'peak_channel' in m]
+    #     unique_peaks = sorted(set(peak_channels)) if peak_channels else []
+    #     print(f"   [best-channel] unique peak_channel values: {unique_peaks}")
 
     # -------- Concatenate per-session tables --------
     unit_labels_df = (pd.concat(unit_labels_combined, ignore_index=True)
@@ -571,7 +571,7 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
         best_meta_df = None
 
     # Check unique peak_channel values
-    print(f"   [best-channel] unique peak_channel values: {best_meta_df['peak_channel'].unique()}")
+    # print(f"   [best-channel] unique peak_channel values: {best_meta_df['peak_channel'].unique()}")
 
     # -------- Final cluster_info.tsv = QC + template metrics + best-channel info (deduped merges) --------
     merged = qm_combined_df.copy()  # contains 'unit_ids' (LOCAL) + 'global_unit_ids'
