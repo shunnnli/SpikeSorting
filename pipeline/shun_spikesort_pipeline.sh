@@ -157,6 +157,10 @@ do
     # Look up session-specific EXCLUDE_LAST_SEC
     session_exclude_sec=$(get_exclude_seconds "$folder_name")
     echo "  EXCLUDE_LAST_SEC for ${folder_name}: ${session_exclude_sec}s"
+    
+    # Extract and display PREPROCESSING_ARGS from slurm file
+    preprocessing_args=$(grep "^PREPROCESSING_ARGS=" "$Slurm_file_path" | head -n 1)
+    echo "  $preprocessing_args"
 
     # Create job folder inside pipeline_save_path
     job_folder="${pipeline_save_path}/pipeline_${folder_name}"
