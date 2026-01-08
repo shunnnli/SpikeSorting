@@ -7,10 +7,10 @@
 # Uses extract_aind_output.py with --session for each session folder.
 #
 # Run on Kempner cluster with e.g.:
-#   tmux new -s aind_regen
+#   tmux new -s regen
 #   pipeline/shun_regenerate_aind_from_outputs.sh
 #   # detach with:  Ctrl-b d
-#   # reattach later: tmux attach -t aind_regen
+#   # reattach later: tmux attach -t regen
 #
 # Optional usage:
 #   pipeline/shun_regenerate_aind_from_outputs.sh pipeline/spike_sort.slrm
