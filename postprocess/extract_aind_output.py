@@ -513,7 +513,10 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
         total_units += len(unit_ids)
 
     print(f" ✅ Total units: {total_units}")
-    print(f"   [best-channel] unique peak_channel values: {best_templates_meta['peak_channel'].unique()}")
+    if len(best_templates_meta) > 0:
+        peak_channels = [m.get('peak_channel') for m in best_templates_meta if 'peak_channel' in m]
+        unique_peaks = sorted(set(peak_channels)) if peak_channels else []
+        print(f"   [best-channel] unique peak_channel values: {unique_peaks}")
 
     # -------- Concatenate per-session tables --------
     unit_labels_df = (pd.concat(unit_labels_combined, ignore_index=True)
