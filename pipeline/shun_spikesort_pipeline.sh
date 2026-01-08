@@ -69,15 +69,50 @@ get_exclude_seconds() {
         echo "${exclude_map[$folder_name]}"
         return
     fi
-    # Try partial/pattern match (case-insensitive)
+    
+    # Collect all partial matches (case-insensitive)
+    local matching_patterns=()
+    local matching_values=()
     for pattern in "${!exclude_map[@]}"; do
         if echo "$folder_name" | grep -qi "$pattern"; then
-            echo "${exclude_map[$pattern]}"
-            return
+            matching_patterns+=("$pattern")
+            matching_values+=("${exclude_map[$pattern]}")
         fi
     done
-    # Return default if no match
-    echo "$DEFAULT_EXCLUDE_SEC"
+    
+    # Check how many matches we found
+    local num_matches=${#matching_patterns[@]}
+    
+    if [ "$num_matches" -eq 0 ]; then
+        # No match found, return default
+        echo "$DEFAULT_EXCLUDE_SEC"
+        return
+    fi
+    
+    if [ "$num_matches" -gt 1 ]; then
+        # Multiple matches - warn and use the longest pattern (most specific)
+        echo "  ⚠️  WARNING: Multiple patterns match '$folder_name':" >&2
+        for i in "${!matching_patterns[@]}"; do
+            echo "      - ${matching_patterns[$i]}=${matching_values[$i]}" >&2
+        done
+        
+        # Find the longest pattern (most specific match)
+        local best_idx=0
+        local best_len=${#matching_patterns[0]}
+        for i in "${!matching_patterns[@]}"; do
+            local len=${#matching_patterns[$i]}
+            if [ "$len" -gt "$best_len" ]; then
+                best_len=$len
+                best_idx=$i
+            fi
+        done
+        echo "      Using longest match: ${matching_patterns[$best_idx]}=${matching_values[$best_idx]}" >&2
+        echo "${matching_values[$best_idx]}"
+        return
+    fi
+    
+    # Single match
+    echo "${matching_values[0]}"
 }
 
 echo "Top directory: $top_dir"
