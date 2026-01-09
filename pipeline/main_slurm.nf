@@ -176,7 +176,7 @@ process job_dispatch {
 	"""
 }
 
-// capsule - Preprocess Ecephys
+// capsule - Preprocess Ecephys (Custom version with manual bad channel support)
 process preprocessing {
 	tag 'preprocessing'
 	container 'file:///${CONTAINER_DIR}/aind-ephys-pipeline-base_si-0.101.2.sif'
@@ -211,10 +211,14 @@ process preprocessing {
 
 	echo "[${task.tag}] cloning git repo..."
 	git clone "https://github.com/AllenNeuralDynamics/aind-ephys-preprocessing.git" capsule-repo
-	// git -C capsule-repo -c core.fileMode=false checkout 8b993d495e6230b6b2aabfd4acff364679e864b8 --quiet
 	git -C capsule-repo -c core.fileMode=false checkout 2651ccbcb6915998591f2c7d235342555819ef1a --quiet
 	mv capsule-repo/code capsule/code
 	rm -rf capsule-repo
+
+	# Copy custom run_capsule with manual bad channel support
+	# This REPLACES the original run_capsule.py with our custom version
+	# If you comment out this line, the original/default run_capsule.py will be used
+	# cp ${PIPELINE_PATH}/run_capsule_custom.py capsule/code/run_capsule.py
 
 	echo "[${task.tag}] allocated time: ${task.time}"
 
