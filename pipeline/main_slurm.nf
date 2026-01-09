@@ -211,7 +211,8 @@ process preprocessing {
 
 	echo "[${task.tag}] cloning git repo..."
 	git clone "https://github.com/AllenNeuralDynamics/aind-ephys-preprocessing.git" capsule-repo
-	git -C capsule-repo -c core.fileMode=false checkout 8b993d495e6230b6b2aabfd4acff364679e864b8 --quiet
+	// git -C capsule-repo -c core.fileMode=false checkout 8b993d495e6230b6b2aabfd4acff364679e864b8 --quiet
+	git -C capsule-repo -c core.fileMode=false checkout 2651ccbcb6915998591f2c7d235342555819ef1a --quiet
 	mv capsule-repo/code capsule/code
 	rm -rf capsule-repo
 
