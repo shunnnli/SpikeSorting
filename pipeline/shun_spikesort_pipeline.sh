@@ -36,10 +36,11 @@ pipeline_path=$(grep "^PIPELINE_PATH" "$Slurm_file_path" | sed "s/PIPELINE_PATH=
 # Resolve relative PIPELINE_PATH to an absolute path (based on current directory)
 pipeline_code_dir=$(realpath "$pipeline_path")
 
-# Load session-specific EXCLUDE_LAST_SEC values from config file
+# Load session-specific EXCLUDE_LAST_SEC and EXCLUDE_FIRST_SEC values from config file
 exclude_config_file="${pipeline_code_dir}/exclude_seconds.conf"
 declare -A exclude_map
-DEFAULT_EXCLUDE_SEC=200
+DEFAULT_EXCLUDE_LAST_SEC=0
+DEFAULT_EXCLUDE_FIRST_SEC=0
 
 if [ -f "$exclude_config_file" ]; then
     echo "Loading exclude seconds config from: $exclude_config_file"
@@ -51,18 +52,26 @@ if [ -f "$exclude_config_file" ]; then
         key=$(echo "$key" | xargs)
         value=$(echo "$value" | xargs)
         if [ "$key" = "DEFAULT" ]; then
-            DEFAULT_EXCLUDE_SEC="$value"
+            # Parse DEFAULT value (format: first:last or just last)
+            if [[ "$value" == *":"* ]]; then
+                DEFAULT_EXCLUDE_FIRST_SEC="${value%%:*}"
+                DEFAULT_EXCLUDE_LAST_SEC="${value#*:}"
+            else
+                DEFAULT_EXCLUDE_LAST_SEC="$value"
+                DEFAULT_EXCLUDE_FIRST_SEC="0"
+            fi
         else
             exclude_map["$key"]="$value"
         fi
     done < "$exclude_config_file"
-    echo "Loaded ${#exclude_map[@]} session-specific exclude values (default: ${DEFAULT_EXCLUDE_SEC}s)"
+    echo "Loaded ${#exclude_map[@]} session-specific exclude values (default: last=${DEFAULT_EXCLUDE_LAST_SEC}s, first=${DEFAULT_EXCLUDE_FIRST_SEC}s)"
 else
-    echo "⚠️  No exclude_seconds.conf found; using default EXCLUDE_LAST_SEC from slurm file"
+    echo "⚠️  No exclude_seconds.conf found; using default EXCLUDE_LAST_SEC and EXCLUDE_FIRST_SEC from slurm file"
 fi
 
-# Function to look up EXCLUDE_LAST_SEC for a given folder name
-get_exclude_seconds() {
+# Function to look up exclude seconds value for a given folder name
+# Returns the raw value string (format: first:last or just last)
+get_exclude_seconds_value() {
     local folder_name="$1"
     # Try exact match first
     if [ -n "${exclude_map[$folder_name]}" ]; then
@@ -85,7 +94,7 @@ get_exclude_seconds() {
     
     if [ "$num_matches" -eq 0 ]; then
         # No match found, return default
-        echo "$DEFAULT_EXCLUDE_SEC"
+        echo "${DEFAULT_EXCLUDE_FIRST_SEC}:${DEFAULT_EXCLUDE_LAST_SEC}"
         return
     fi
     
@@ -113,6 +122,28 @@ get_exclude_seconds() {
     
     # Single match
     echo "${matching_values[0]}"
+}
+
+# Function to get EXCLUDE_FIRST_SEC for a given folder name
+get_exclude_first_seconds() {
+    local value=$(get_exclude_seconds_value "$1")
+    # Parse value (format: first:last or just last)
+    if [[ "$value" == *":"* ]]; then
+        echo "${value%%:*}"
+    else
+        echo "0"
+    fi
+}
+
+# Function to get EXCLUDE_LAST_SEC for a given folder name
+get_exclude_last_seconds() {
+    local value=$(get_exclude_seconds_value "$1")
+    # Parse value (format: first:last or just last)
+    if [[ "$value" == *":"* ]]; then
+        echo "${value#*:}"
+    else
+        echo "$value"
+    fi
 }
 
 echo "Top directory: $top_dir"
@@ -154,9 +185,11 @@ do
     new_results_path="RESULTS_PATH=\"${out_dir%/}/${folder_name}_output\""
     new_pipeline_path="PIPELINE_PATH=\"${pipeline_code_dir}\""
 
-    # Look up session-specific EXCLUDE_LAST_SEC
-    session_exclude_sec=$(get_exclude_seconds "$folder_name")
-    echo "  EXCLUDE_LAST_SEC for ${folder_name}: ${session_exclude_sec}s"
+    # Look up session-specific EXCLUDE_LAST_SEC and EXCLUDE_FIRST_SEC
+    session_exclude_last_sec=$(get_exclude_last_seconds "$folder_name")
+    session_exclude_first_sec=$(get_exclude_first_seconds "$folder_name")
+    echo "  EXCLUDE_LAST_SEC for ${folder_name}: ${session_exclude_last_sec}s"
+    echo "  EXCLUDE_FIRST_SEC for ${folder_name}: ${session_exclude_first_sec}s"
     
     # Extract and display PREPROCESSING_ARGS from slurm file
     preprocessing_args=$(grep "^PREPROCESSING_ARGS=" "$Slurm_file_path" | head -n 1)
@@ -175,8 +208,10 @@ do
     sed "s|^DATA_PATH=.*|$new_data_path|g" 2.tmp.slrm > 3.tmp.slrm
     sed "s|^PIPELINE_PATH=.*|$new_pipeline_path|g" 3.tmp.slrm > 4.tmp.slrm
     # Update EXCLUDE_LAST_SEC with session-specific value
-    sed "s|^EXCLUDE_LAST_SEC=.*|EXCLUDE_LAST_SEC=\"${session_exclude_sec}\"|g" 4.tmp.slrm > "$job_slurm_script"
-    rm 1.tmp.slrm 2.tmp.slrm 3.tmp.slrm 4.tmp.slrm
+    sed "s|^EXCLUDE_LAST_SEC=.*|EXCLUDE_LAST_SEC=\"${session_exclude_last_sec}\"|g" 4.tmp.slrm > 5.tmp.slrm
+    # Update EXCLUDE_FIRST_SEC with session-specific value
+    sed "s|^EXCLUDE_FIRST_SEC=.*|EXCLUDE_FIRST_SEC=\"${session_exclude_first_sec}\"|g" 5.tmp.slrm > "$job_slurm_script"
+    rm 1.tmp.slrm 2.tmp.slrm 3.tmp.slrm 4.tmp.slrm 5.tmp.slrm
 
     echo ""
     echo "Submitting $job_slurm_script"
