@@ -190,6 +190,7 @@ process preprocessing {
 	env max_duration_min
 	path 'capsule/data/' from job_dispatch_to_preprocessing.flatten()
 	path 'capsule/data/ecephys_session' from ecephys_to_preprocessing.collect()
+	path 'run_capsule_custom.py' from file("pipeline/run_capsule_custom.py")
 
 	output:
 	path 'capsule/results/*' into preprocessing_to_postprocessing
@@ -218,7 +219,7 @@ process preprocessing {
 	# Copy custom run_capsule with manual bad channel support
 	# This REPLACES the original run_capsule.py with our custom version
 	# If you comment out this line, the original/default run_capsule.py will be used
-	# cp ${PIPELINE_PATH}/run_capsule_custom.py capsule/code/run_capsule.py
+	cp run_capsule_custom.py capsule/code/run_capsule.py
 
 	echo "[${task.tag}] allocated time: ${task.time}"
 
