@@ -190,7 +190,7 @@ process preprocessing {
 	env max_duration_min
 	path 'capsule/data/' from job_dispatch_to_preprocessing.flatten()
 	path 'capsule/data/ecephys_session' from ecephys_to_preprocessing.collect()
-	path 'run_capsule_custom.py' from file("pipeline/run_capsule_custom.py")
+	path 'run_capsule_custom.py' from file("run_capsule_custom.py")
 
 	output:
 	path 'capsule/results/*' into preprocessing_to_postprocessing
