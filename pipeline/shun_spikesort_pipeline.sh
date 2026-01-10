@@ -149,6 +149,57 @@ get_exclude_last_seconds() {
 echo "Top directory: $top_dir"
 echo "Pipeline code path: $pipeline_code_dir"
 
+# ================================
+# Display preprocessing configuration
+# ================================
+# Extract USE_CUSTOM_PREPROCESSING setting from the slurm file
+use_custom_preprocessing=$(grep "^USE_CUSTOM_PREPROCESSING" "$Slurm_file_path" | sed 's/USE_CUSTOM_PREPROCESSING=//g' | tr -d '"')
+use_custom_preprocessing=${use_custom_preprocessing:-"true"}  # Default to true if not set
+
+echo ""
+echo "=========================================="
+echo "PREPROCESSING CONFIGURATION"
+echo "=========================================="
+
+# Check custom preprocessing setting
+custom_script_path="${pipeline_code_dir}/run_capsule_custom.py"
+if [ "$use_custom_preprocessing" = "true" ]; then
+    if [ -f "$custom_script_path" ]; then
+        echo "✅ USE_CUSTOM_PREPROCESSING: true"
+        echo "   Custom script: $custom_script_path"
+    else
+        echo "⚠️  USE_CUSTOM_PREPROCESSING: true (BUT SCRIPT NOT FOUND!)"
+        echo "   Expected at: $custom_script_path"
+        echo "   Will FAIL - please create the custom script or set USE_CUSTOM_PREPROCESSING=\"false\""
+    fi
+    
+    # Check and display bad channels configuration (only relevant for custom preprocessing)
+    bad_channels_config="${pipeline_code_dir}/bad_channels.conf"
+    if [ -f "$bad_channels_config" ]; then
+        echo ""
+        echo "📋 BAD CHANNELS CONFIGURATION:"
+        echo "   File: $bad_channels_config"
+        echo "   ------------------------------------------"
+        # Display non-empty, non-comment lines
+        while IFS= read -r line; do
+            # Skip empty lines and comments
+            [[ -z "$line" ]] && continue
+            [[ "$line" =~ ^[[:space:]]*# ]] && continue
+            echo "   $line"
+        done < "$bad_channels_config"
+        echo "   ------------------------------------------"
+    else
+        echo ""
+        echo "ℹ️  No bad_channels.conf found (no manual bad channels specified)"
+    fi
+else
+    echo "ℹ️  USE_CUSTOM_PREPROCESSING: false"
+    echo "   Using DEFAULT preprocessing from aind-ephys-preprocessing"
+    echo "   (Bad channels config will be ignored)"
+fi
+echo "=========================================="
+echo ""
+
 # Define where to save the pipeline job folders
 pipeline_save_path="${pipeline_code_dir%/}/pipeline_saved"
 mkdir -p "$pipeline_save_path"
@@ -190,6 +241,35 @@ do
     session_exclude_first_sec=$(get_exclude_first_seconds "$folder_name")
     echo "  EXCLUDE_LAST_SEC for ${folder_name}: ${session_exclude_last_sec}s"
     echo "  EXCLUDE_FIRST_SEC for ${folder_name}: ${session_exclude_first_sec}s"
+    
+    # Look up session-specific bad channels from bad_channels.conf (only when using custom preprocessing)
+    if [ "$use_custom_preprocessing" = "true" ] && [ -f "$bad_channels_config" ]; then
+        matched_bad_channels=""
+        while IFS='=' read -r key value; do
+            # Skip comments and empty lines
+            [[ "$key" =~ ^[[:space:]]*# ]] && continue
+            [[ -z "$key" ]] && continue
+            # Trim whitespace
+            key=$(echo "$key" | xargs)
+            value=$(echo "$value" | xargs)
+            # Case-insensitive partial matching (same logic as run_capsule_custom.py)
+            key_lower=$(echo "$key" | tr '[:upper:]' '[:lower:]')
+            folder_lower=$(echo "$folder_name" | tr '[:upper:]' '[:lower:]')
+            if [[ "$folder_lower" == *"$key_lower"* ]] || [[ "$key_lower" == *"$folder_lower"* ]]; then
+                if [ -n "$matched_bad_channels" ]; then
+                    matched_bad_channels="$matched_bad_channels, $value (from '$key')"
+                else
+                    matched_bad_channels="$value (from '$key')"
+                fi
+            fi
+        done < "$bad_channels_config"
+        
+        if [ -n "$matched_bad_channels" ]; then
+            echo "  📋 BAD_CHANNELS for ${folder_name}: $matched_bad_channels"
+        else
+            echo "  📋 BAD_CHANNELS for ${folder_name}: (none - no matching pattern)"
+        fi
+    fi
     
     # Extract and display PREPROCESSING_ARGS from slurm file
     preprocessing_args=$(grep "^PREPROCESSING_ARGS=" "$Slurm_file_path" | head -n 1)

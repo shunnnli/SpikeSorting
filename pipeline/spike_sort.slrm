@@ -22,6 +22,13 @@ CONTAINER_DIR="/n/holylfs06/LABS/kempner_shared/Everyone/workflow/ephys-spike-so
 
 INPUT_DATA_TYPE="spikeglx"
 
+# ================================
+# Use custom preprocessing script (with manual bad channels support)
+# ================================
+# Set to "true" to use run_capsule_custom.py (supports --bad-channel-ids)
+# Set to "false" to use the default aind-ephys-preprocessing script
+USE_CUSTOM_PREPROCESSING="true"
+
 module load Mambaforge/23.11.0-fasrc01
 mamba activate /n/holylfs06/LABS/kempner_shared/Everyone/workflow/ephys-spike-sorting-2024/versions/latest/software/nextflow_v22.10.6
 
@@ -99,5 +106,6 @@ CONTAINER_DIR=$CONTAINER_DIR DATA_PATH=$DATA_PATH RESULTS_PATH=$RESULTS_PATH nex
     --runmode full \
     --job_dispatch_args "--input $INPUT_DATA_TYPE" \
     --preprocessing_args "$PREPROCESSING_ARGS" \
+    --use_custom_preprocessing "$USE_CUSTOM_PREPROCESSING" \
   
     

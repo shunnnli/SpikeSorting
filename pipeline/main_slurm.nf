@@ -29,6 +29,16 @@ else
 }
 println "Using RUNMODE: ${runmode}"
 
+// set use_custom_preprocessing
+if ("use_custom_preprocessing" in params_keys) {
+	use_custom_preprocessing = params.use_custom_preprocessing == "true"
+}
+else
+{
+	use_custom_preprocessing = true  // default to true
+}
+println "Using CUSTOM PREPROCESSING: ${use_custom_preprocessing}"
+
 if (!params_keys.contains('job_dispatch_args')) {
 	params.job_dispatch_args = ""
 }
@@ -190,7 +200,6 @@ process preprocessing {
 	env max_duration_min
 	path 'capsule/data/' from job_dispatch_to_preprocessing.flatten()
 	path 'capsule/data/ecephys_session' from ecephys_to_preprocessing.collect()
-	path 'run_capsule_custom.py' from file("run_capsule_custom.py")
 
 	output:
 	path 'capsule/results/*' into preprocessing_to_postprocessing
@@ -201,6 +210,8 @@ process preprocessing {
 	path 'capsule/results/*' into preprocessing_to_results_collector
 
 	script:
+	def use_custom = use_custom_preprocessing ? "true" : "false"
+	def custom_script_path = "${projectDir}/run_capsule_custom.py"
 	"""
 	#!/usr/bin/env bash
 	set -e
@@ -216,10 +227,24 @@ process preprocessing {
 	mv capsule-repo/code capsule/code
 	rm -rf capsule-repo
 
-	# Copy custom run_capsule with manual bad channel support
-	# This REPLACES the original run_capsule.py with our custom version
-	# If you comment out this line, the original/default run_capsule.py will be used
-	cp run_capsule_custom.py capsule/code/run_capsule.py
+	# Conditionally use custom preprocessing script
+	if [ "${use_custom}" = "true" ]; then
+		echo "[${task.tag}] =========================================="
+		echo "[${task.tag}] USING CUSTOM PREPROCESSING SCRIPT"
+		echo "[${task.tag}] Source: ${custom_script_path}"
+		echo "[${task.tag}] =========================================="
+		if [ -f "${custom_script_path}" ]; then
+			cp "${custom_script_path}" capsule/code/run_capsule.py
+		else
+			echo "[${task.tag}] ERROR: Custom script not found at ${custom_script_path}"
+			echo "[${task.tag}] Please ensure run_capsule_custom.py exists in the pipeline directory"
+			exit 1
+		fi
+	else
+		echo "[${task.tag}] =========================================="
+		echo "[${task.tag}] USING DEFAULT PREPROCESSING SCRIPT"
+		echo "[${task.tag}] =========================================="
+	fi
 
 	echo "[${task.tag}] allocated time: ${task.time}"
 
