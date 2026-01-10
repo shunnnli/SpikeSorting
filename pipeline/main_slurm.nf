@@ -223,7 +223,10 @@ process preprocessing {
 
 	echo "[${task.tag}] cloning git repo..."
 	git clone "https://github.com/AllenNeuralDynamics/aind-ephys-preprocessing.git" capsule-repo
-	git -C capsule-repo -c core.fileMode=false checkout 2651ccbcb6915998591f2c7d235342555819ef1a --quiet
+	# Note: Commit must be compatible with SpikeInterface version in the container
+	# Container aind-ephys-pipeline-base_si-0.101.2.sif uses SI 0.101.2 which has si.load_extractor()
+	# Newer commits use si.load() which requires SI 0.102+
+	git -C capsule-repo -c core.fileMode=false checkout 8b993d495e6230b6b2aabfd4acff364679e864b8 --quiet
 	mv capsule-repo/code capsule/code
 	rm -rf capsule-repo
 
