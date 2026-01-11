@@ -87,8 +87,15 @@ if [ -f "$bad_channels_config_file" ]; then
         [[ -z "$key" ]] && continue
         [[ -z "$value" ]] && continue
         bad_channels_map["$key"]="$value"
+        echo "  DEBUG: Loaded pattern '$key' with channels: $value"
     done < "$bad_channels_config_file"
     echo "Loaded ${#bad_channels_map[@]} session-specific bad channel entries"
+    if [ "${#bad_channels_map[@]}" -gt 0 ]; then
+        echo "All loaded patterns:"
+        for pattern in "${!bad_channels_map[@]}"; do
+            echo "  - '$pattern'"
+        done
+    fi
 else
     echo "ℹ️  No bad_channels.conf found (no manual bad channels will be specified)"
 fi
@@ -98,13 +105,19 @@ get_bad_channels_for_session() {
     local folder_name="$1"
     local matched_channels=""
     
+    echo "  DEBUG: Checking folder_name='$folder_name' against ${#bad_channels_map[@]} patterns" >&2
+    
     for pattern in "${!bad_channels_map[@]}"; do
+        echo "    DEBUG: Testing pattern='$pattern'" >&2
         if echo "$folder_name" | grep -qi "$pattern"; then
+            echo "    DEBUG: MATCH! Pattern '$pattern' matches folder '$folder_name'" >&2
             if [ -n "$matched_channels" ]; then
                 matched_channels="$matched_channels | ${bad_channels_map[$pattern]} (from '$pattern')"
             else
                 matched_channels="${bad_channels_map[$pattern]} (from '$pattern')"
             fi
+        else
+            echo "    DEBUG: No match for pattern '$pattern'" >&2
         fi
     done
     
@@ -269,9 +282,9 @@ do
     if [ "$use_custom_preprocessing" = "true" ]; then
         matched_bad_channels=$(get_bad_channels_for_session "$folder_name")
         if [ -n "$matched_bad_channels" ]; then
-            echo "  📋 BAD_CHANNELS for ${folder_name}: $matched_bad_channels"
+            echo "  BAD_CHANNELS for ${folder_name}: $matched_bad_channels"
         else
-            echo "  📋 BAD_CHANNELS for ${folder_name}: (none - no matching pattern)"
+            echo "  BAD_CHANNELS for ${folder_name}: (none - no matching pattern)"
         fi
     fi
     
