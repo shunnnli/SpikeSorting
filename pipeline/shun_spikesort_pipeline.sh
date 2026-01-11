@@ -252,10 +252,8 @@ do
             # Trim whitespace
             key=$(echo "$key" | xargs)
             value=$(echo "$value" | xargs)
-            # Case-insensitive partial matching (same logic as run_capsule_custom.py)
-            key_lower=$(echo "$key" | tr '[:upper:]' '[:lower:]')
-            folder_lower=$(echo "$folder_name" | tr '[:upper:]' '[:lower:]')
-            if [[ "$folder_lower" == *"$key_lower"* ]] || [[ "$key_lower" == *"$folder_lower"* ]]; then
+            # Case-insensitive partial matching using grep (same as exclude_seconds)
+            if echo "$folder_name" | grep -qi "$key"; then
                 if [ -n "$matched_bad_channels" ]; then
                     matched_bad_channels="$matched_bad_channels, $value (from '$key')"
                 else
