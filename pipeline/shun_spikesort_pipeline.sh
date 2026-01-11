@@ -73,45 +73,23 @@ fi
 bad_channels_config_file="${pipeline_code_dir}/bad_channels.conf"
 declare -A bad_channels_map
 
-echo "DEBUG: Looking for bad_channels.conf at: $bad_channels_config_file"
 if [ -f "$bad_channels_config_file" ]; then
-    echo "✅ Found bad_channels.conf, loading..."
-    line_num=0
-    while IFS='=' read -r key value || [ -n "$key" ]; do
-        line_num=$((line_num + 1))
+    echo "Loading bad channels config from: $bad_channels_config_file"
+    while IFS='=' read -r key value; do
         # Skip comments and empty lines (same as exclude_seconds)
-        if [[ "$key" =~ ^#.*$ ]] || [[ -z "$key" ]]; then
-            continue
-        fi
+        [[ "$key" =~ ^#.*$ ]] && continue
+        [[ -z "$key" ]] && continue
         # Trim whitespace
-        key_orig="$key"
-        value_orig="$value"
         key=$(echo "$key" | xargs)
         value=$(echo "$value" | xargs)
-        # Debug output
-        echo "  DEBUG Line $line_num: key_orig='$key_orig', value_orig='$value_orig'"
-        echo "  DEBUG Line $line_num: key_trimmed='$key', value_trimmed='$value'"
         # Skip if key or value is empty after trimming
-        if [[ -z "$key" ]] || [[ -z "$value" ]]; then
-            echo "  DEBUG Line $line_num: SKIPPED (empty after trim)"
-            continue
-        fi
+        [[ -z "$key" ]] && continue
+        [[ -z "$value" ]] && continue
         bad_channels_map["$key"]="$value"
-        echo "  DEBUG Line $line_num: LOADED pattern '$key' with channels: $value"
     done < "$bad_channels_config_file"
-    echo "✅ Loaded ${#bad_channels_map[@]} session-specific bad channel entries"
-    if [ "${#bad_channels_map[@]}" -gt 0 ]; then
-        echo "   Loaded patterns:"
-        for pattern in "${!bad_channels_map[@]}"; do
-            echo "     - '$pattern' = ${bad_channels_map[$pattern]}"
-        done
-    else
-        echo "   ⚠️  WARNING: File exists but 0 entries loaded (all lines were skipped)"
-    fi
+    echo "Loaded ${#bad_channels_map[@]} session-specific bad channel entries"
 else
-    echo "❌ File not found: $bad_channels_config_file"
-    echo "   Please create bad_channels.conf in the pipeline directory"
-    echo "   Or if it exists, check the path above"
+    echo "ℹ️  No bad_channels.conf found (no manual bad channels will be specified)"
 fi
 
 # Function to look up bad channels for a given folder name
@@ -119,19 +97,13 @@ get_bad_channels_for_session() {
     local folder_name="$1"
     local matched_channels=""
     
-    echo "  DEBUG: Checking folder_name='$folder_name' against ${#bad_channels_map[@]} patterns" >&2
-    
     for pattern in "${!bad_channels_map[@]}"; do
-        echo "    DEBUG: Testing pattern='$pattern'" >&2
         if echo "$folder_name" | grep -qi "$pattern"; then
-            echo "    DEBUG: MATCH! Pattern '$pattern' matches folder '$folder_name'" >&2
             if [ -n "$matched_channels" ]; then
                 matched_channels="$matched_channels | ${bad_channels_map[$pattern]} (from '$pattern')"
             else
                 matched_channels="${bad_channels_map[$pattern]} (from '$pattern')"
             fi
-        else
-            echo "    DEBUG: No match for pattern '$pattern'" >&2
         fi
     done
     
