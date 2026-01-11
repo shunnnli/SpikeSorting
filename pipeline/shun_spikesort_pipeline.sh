@@ -73,8 +73,9 @@ fi
 bad_channels_config_file="${pipeline_code_dir}/bad_channels.conf"
 declare -A bad_channels_map
 
+echo "DEBUG: Looking for bad_channels.conf at: $bad_channels_config_file"
 if [ -f "$bad_channels_config_file" ]; then
-    echo "Loading bad channels config from: $bad_channels_config_file"
+    echo "✅ Found bad_channels.conf, loading..."
     while IFS='=' read -r key value; do
         # Skip comments and empty lines
         [[ "$key" =~ ^#.*$ ]] && continue
@@ -89,15 +90,19 @@ if [ -f "$bad_channels_config_file" ]; then
         bad_channels_map["$key"]="$value"
         echo "  DEBUG: Loaded pattern '$key' with channels: $value"
     done < "$bad_channels_config_file"
-    echo "Loaded ${#bad_channels_map[@]} session-specific bad channel entries"
+    echo "✅ Loaded ${#bad_channels_map[@]} session-specific bad channel entries"
     if [ "${#bad_channels_map[@]}" -gt 0 ]; then
-        echo "All loaded patterns:"
+        echo "   Loaded patterns:"
         for pattern in "${!bad_channels_map[@]}"; do
-            echo "  - '$pattern'"
+            echo "     - '$pattern' = ${bad_channels_map[$pattern]}"
         done
+    else
+        echo "   ⚠️  WARNING: File exists but 0 entries loaded (all lines were skipped)"
     fi
 else
-    echo "ℹ️  No bad_channels.conf found (no manual bad channels will be specified)"
+    echo "❌ File not found: $bad_channels_config_file"
+    echo "   Please create bad_channels.conf in the pipeline directory"
+    echo "   Or if it exists, check the path above"
 fi
 
 # Function to look up bad channels for a given folder name
