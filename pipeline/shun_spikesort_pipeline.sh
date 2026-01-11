@@ -69,6 +69,48 @@ else
     echo "⚠️  No exclude_seconds.conf found; using default EXCLUDE_LAST_SEC and EXCLUDE_FIRST_SEC from slurm file"
 fi
 
+# Load session-specific bad channels from config file (same pattern as exclude_seconds)
+bad_channels_config_file="${pipeline_code_dir}/bad_channels.conf"
+declare -A bad_channels_map
+
+if [ -f "$bad_channels_config_file" ]; then
+    echo "Loading bad channels config from: $bad_channels_config_file"
+    while IFS='=' read -r key value; do
+        # Skip comments and empty lines
+        [[ "$key" =~ ^#.*$ ]] && continue
+        [[ "$key" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "$key" ]] && continue
+        # Trim whitespace
+        key=$(echo "$key" | xargs)
+        value=$(echo "$value" | xargs)
+        # Skip if key or value is empty after trimming
+        [[ -z "$key" ]] && continue
+        [[ -z "$value" ]] && continue
+        bad_channels_map["$key"]="$value"
+    done < "$bad_channels_config_file"
+    echo "Loaded ${#bad_channels_map[@]} session-specific bad channel entries"
+else
+    echo "ℹ️  No bad_channels.conf found (no manual bad channels will be specified)"
+fi
+
+# Function to look up bad channels for a given folder name
+get_bad_channels_for_session() {
+    local folder_name="$1"
+    local matched_channels=""
+    
+    for pattern in "${!bad_channels_map[@]}"; do
+        if echo "$folder_name" | grep -qi "$pattern"; then
+            if [ -n "$matched_channels" ]; then
+                matched_channels="$matched_channels | ${bad_channels_map[$pattern]} (from '$pattern')"
+            else
+                matched_channels="${bad_channels_map[$pattern]} (from '$pattern')"
+            fi
+        fi
+    done
+    
+    echo "$matched_channels"
+}
+
 # Function to look up exclude seconds value for a given folder name
 # Returns the raw value string (format: first:last or just last)
 get_exclude_seconds_value() {
@@ -173,25 +215,6 @@ if [ "$use_custom_preprocessing" = "true" ]; then
         echo "   Will FAIL - please create the custom script or set USE_CUSTOM_PREPROCESSING=\"false\""
     fi
     
-    # Check and display bad channels configuration (only relevant for custom preprocessing)
-    bad_channels_config="${pipeline_code_dir}/bad_channels.conf"
-    if [ -f "$bad_channels_config" ]; then
-        echo ""
-        echo "📋 BAD CHANNELS CONFIGURATION:"
-        echo "   File: $bad_channels_config"
-        echo "   ------------------------------------------"
-        # Display non-empty, non-comment lines
-        while IFS= read -r line; do
-            # Skip empty lines and comments
-            [[ -z "$line" ]] && continue
-            [[ "$line" =~ ^[[:space:]]*# ]] && continue
-            echo "   $line"
-        done < "$bad_channels_config"
-        echo "   ------------------------------------------"
-    else
-        echo ""
-        echo "ℹ️  No bad_channels.conf found (no manual bad channels specified)"
-    fi
 else
     echo "ℹ️  USE_CUSTOM_PREPROCESSING: false"
     echo "   Using DEFAULT preprocessing from aind-ephys-preprocessing"
@@ -242,26 +265,9 @@ do
     echo "  EXCLUDE_LAST_SEC for ${folder_name}: ${session_exclude_last_sec}s"
     echo "  EXCLUDE_FIRST_SEC for ${folder_name}: ${session_exclude_first_sec}s"
     
-    # Look up session-specific bad channels from bad_channels.conf (only when using custom preprocessing)
-    if [ "$use_custom_preprocessing" = "true" ] && [ -f "$bad_channels_config" ]; then
-        matched_bad_channels=""
-        while IFS='=' read -r key value; do
-            # Skip comments and empty lines
-            [[ "$key" =~ ^[[:space:]]*# ]] && continue
-            [[ -z "$key" ]] && continue
-            # Trim whitespace
-            key=$(echo "$key" | xargs)
-            value=$(echo "$value" | xargs)
-            # Case-insensitive partial matching using grep (same as exclude_seconds)
-            if echo "$folder_name" | grep -qi "$key"; then
-                if [ -n "$matched_bad_channels" ]; then
-                    matched_bad_channels="$matched_bad_channels, $value (from '$key')"
-                else
-                    matched_bad_channels="$value (from '$key')"
-                fi
-            fi
-        done < "$bad_channels_config"
-        
+    # Look up session-specific bad channels using pre-loaded map (only when using custom preprocessing)
+    if [ "$use_custom_preprocessing" = "true" ]; then
+        matched_bad_channels=$(get_bad_channels_for_session "$folder_name")
         if [ -n "$matched_bad_channels" ]; then
             echo "  📋 BAD_CHANNELS for ${folder_name}: $matched_bad_channels"
         else
