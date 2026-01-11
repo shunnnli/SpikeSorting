@@ -77,9 +77,8 @@ echo "DEBUG: Looking for bad_channels.conf at: $bad_channels_config_file"
 if [ -f "$bad_channels_config_file" ]; then
     echo "✅ Found bad_channels.conf, loading..."
     while IFS='=' read -r key value; do
-        # Skip comments and empty lines
+        # Skip comments and empty lines (same as exclude_seconds)
         [[ "$key" =~ ^#.*$ ]] && continue
-        [[ "$key" =~ ^[[:space:]]*# ]] && continue
         [[ -z "$key" ]] && continue
         # Trim whitespace
         key=$(echo "$key" | xargs)
