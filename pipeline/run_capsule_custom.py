@@ -128,14 +128,14 @@ params_group.add_argument("--params-str", default=None, help="Optional json stri
 # NEW: Manual bad channel arguments
 # ============================================================================
 bad_channel_ids_help = (
-    "Comma-separated list of bad channel IDs to add to auto-detected bad channels. "
-    "Example: --bad-channel-ids 'AP0,AP5,AP127' or --bad-channel-ids '0,5,127'"
+    "Comma-separated list of numeric bad channel indices to add to auto-detected bad channels. "
+    "Example: --bad-channel-ids '0,5,127'"
 )
 parser.add_argument("--bad-channel-ids", default=None, help=bad_channel_ids_help)
 
 bad_channels_config_help = (
     "Path to a bad_channels.conf file with session-specific bad channel mappings. "
-    "Format: session_name = channel1, channel2, channel3"
+    "Format: session_name = channel1, channel2, channel3 (numeric indices only, e.g., '0,5,127')"
 )
 parser.add_argument("--bad-channels-config", default=None, help=bad_channels_config_help)
 
@@ -145,13 +145,13 @@ parser.add_argument("--bad-channels-config", default=None, help=bad_channels_con
 # ============================================================================
 def parse_bad_channel_ids(bad_channel_str: str) -> List[str]:
     """
-    Parse comma-separated bad channel IDs from command line.
+    Parse comma-separated numeric channel indices from command line.
     
     Args:
-        bad_channel_str: Comma-separated string like "AP0,AP5,AP127" or "0,5,127"
+        bad_channel_str: Comma-separated string like "0,5,127"
     
     Returns:
-        List of channel ID strings
+        List of channel index strings (numeric only)
     """
     if not bad_channel_str or bad_channel_str.strip() == "":
         return []
@@ -160,19 +160,21 @@ def parse_bad_channel_ids(bad_channel_str: str) -> List[str]:
 
 def load_bad_channels_from_config(config_path: Path, session_name: str) -> List[str]:
     """
-    Load bad channel IDs from config file for a specific session.
+    Load numeric bad channel indices from config file for a specific session.
     
     Config file format:
         # Comments start with #
         session_name = channel1, channel2, channel3
         partial_match = channel4, channel5
     
+    Note: Only numeric channel indices are supported (e.g., "0,5,127").
+    
     Args:
         config_path: Path to bad_channels.conf file
         session_name: Name of the recording session
     
     Returns:
-        List of bad channel IDs (empty list if no match found)
+        List of channel index strings (numeric only, empty list if no match found)
     """
     if not config_path.exists():
         print(f"\t[custom] No bad channels config found at {config_path}")
@@ -213,16 +215,13 @@ def load_bad_channels_from_config(config_path: Path, session_name: str) -> List[
 
 def get_channel_ids_from_names(recording, channel_names: List[str]) -> np.ndarray:
     """
-    Convert channel names to channel IDs that SpikeInterface understands.
+    Convert numeric channel indices to channel IDs that SpikeInterface understands.
     
-    Supports:
-    - Direct channel ID matching (e.g., "AP0" if that's the actual ID)
-    - Numeric index matching (e.g., "5" -> channel at index 5)
-    - AP-prefix numeric matching (e.g., "AP5" -> channel at index 5)
+    Only supports numeric channel indices (e.g., "0", "5", "127" -> channel at index 0, 5, 127).
     
     Args:
         recording: SpikeInterface recording object
-        channel_names: List of channel names (e.g., ['AP0', 'AP5', '127'])
+        channel_names: List of numeric channel indices as strings (e.g., ['0', '5', '127'])
     
     Returns:
         Array of channel IDs
@@ -231,25 +230,15 @@ def get_channel_ids_from_names(recording, channel_names: List[str]) -> np.ndarra
     
     matched_ids = []
     for name in channel_names:
-        # Try direct match first
-        if name in all_channel_ids:
-            matched_ids.append(name)
-            continue
-        
-        # Try numeric matching
+        # Only support numeric indices
         try:
-            # Handle "AP5" format -> extract 5
-            if isinstance(name, str) and name.upper().startswith("AP"):
-                idx = int(name[2:])
-            else:
-                idx = int(name)
-            
+            idx = int(name.strip())
             if 0 <= idx < len(all_channel_ids):
                 matched_ids.append(all_channel_ids[idx])
             else:
                 print(f"\t[custom] Warning: Channel index {idx} out of range (0-{len(all_channel_ids)-1})")
-        except (ValueError, IndexError):
-            print(f"\t[custom] Warning: Could not find channel '{name}'")
+        except ValueError:
+            print(f"\t[custom] Warning: Invalid channel ID '{name}' - only numeric indices are supported (e.g., '0', '5', '127')")
     
     return np.array(matched_ids)
 

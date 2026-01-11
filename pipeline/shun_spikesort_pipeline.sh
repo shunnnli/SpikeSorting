@@ -76,18 +76,28 @@ declare -A bad_channels_map
 echo "DEBUG: Looking for bad_channels.conf at: $bad_channels_config_file"
 if [ -f "$bad_channels_config_file" ]; then
     echo "✅ Found bad_channels.conf, loading..."
-    while IFS='=' read -r key value; do
+    line_num=0
+    while IFS='=' read -r key value || [ -n "$key" ]; do
+        line_num=$((line_num + 1))
         # Skip comments and empty lines (same as exclude_seconds)
-        [[ "$key" =~ ^#.*$ ]] && continue
-        [[ -z "$key" ]] && continue
+        if [[ "$key" =~ ^#.*$ ]] || [[ -z "$key" ]]; then
+            continue
+        fi
         # Trim whitespace
+        key_orig="$key"
+        value_orig="$value"
         key=$(echo "$key" | xargs)
         value=$(echo "$value" | xargs)
+        # Debug output
+        echo "  DEBUG Line $line_num: key_orig='$key_orig', value_orig='$value_orig'"
+        echo "  DEBUG Line $line_num: key_trimmed='$key', value_trimmed='$value'"
         # Skip if key or value is empty after trimming
-        [[ -z "$key" ]] && continue
-        [[ -z "$value" ]] && continue
+        if [[ -z "$key" ]] || [[ -z "$value" ]]; then
+            echo "  DEBUG Line $line_num: SKIPPED (empty after trim)"
+            continue
+        fi
         bad_channels_map["$key"]="$value"
-        echo "  DEBUG: Loaded pattern '$key' with channels: $value"
+        echo "  DEBUG Line $line_num: LOADED pattern '$key' with channels: $value"
     done < "$bad_channels_config_file"
     echo "✅ Loaded ${#bad_channels_map[@]} session-specific bad channel entries"
     if [ "${#bad_channels_map[@]}" -gt 0 ]; then
