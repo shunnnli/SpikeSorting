@@ -251,6 +251,13 @@ def dump_to_json_or_pickle(recording, results_folder, base_name, relative_to):
 
 
 if __name__ == "__main__":
+    # ================================================================
+    # CUSTOM VERSION MARKER - This confirms the custom script is running
+    # ================================================================
+    print("=" * 60)
+    print(f"CUSTOM PREPROCESSING SCRIPT VERSION: {VERSION}")
+    print("=" * 60)
+    
     args = parser.parse_args()
 
     DENOISING_STRATEGY = args.denoising or args.static_denoising
