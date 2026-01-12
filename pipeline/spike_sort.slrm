@@ -11,6 +11,14 @@
 #SBATCH --error=ephys-%N.%x.%j.err
 #SBATCH --mail-user shunli@g.harvard.edu
 
+# ================================
+# Run on Kempner cluster with this command (tmux recommended for running in background):
+# tmux new -s spikesort
+# pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm
+# # detach with:  Ctrl-b d (both mac and windows)
+# # reattach later: tmux attach -t spikesort
+# ================================
+
 DATA_PATH="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_input/todo/"
 WORK_DIR="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/work_dir/"
 PIPELINE_PATH="pipeline/"
@@ -19,7 +27,6 @@ BACKUP_PATH="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_input/"
 
 
 CONTAINER_DIR="/n/holylfs06/LABS/kempner_shared/Everyone/workflow/ephys-spike-sorting-2024/containers"
-
 INPUT_DATA_TYPE="spikeglx"
 
 # ================================

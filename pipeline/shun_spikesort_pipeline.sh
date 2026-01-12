@@ -313,10 +313,6 @@ do
             echo "  BAD_CHANNELS for ${folder_name}: (none - no matching pattern)"
         fi
     fi
-    
-    # Extract and display PREPROCESSING_ARGS from slurm file
-    preprocessing_args=$(grep "^PREPROCESSING_ARGS=" "$Slurm_file_path" | head -n 1)
-    echo "  $preprocessing_args"
 
     # Create job folder inside pipeline_save_path
     job_folder="${pipeline_save_path}/pipeline_${folder_name}"
@@ -337,6 +333,17 @@ do
     # Update BAD_CHANNELS with session-specific value (empty string if none)
     sed "s|^BAD_CHANNELS=.*|BAD_CHANNELS=\"${session_bad_channels}\"|g" 6.tmp.slrm > "$job_slurm_script"
     rm 1.tmp.slrm 2.tmp.slrm 3.tmp.slrm 4.tmp.slrm 5.tmp.slrm 6.tmp.slrm
+    
+    # Extract base PREPROCESSING_ARGS from the generated script (before bad channels are appended)
+    base_preprocessing_args=$(grep "^PREPROCESSING_ARGS=" "$job_slurm_script" | head -n 1 | sed 's/PREPROCESSING_ARGS=//' | tr -d '"')
+    
+    # Show what PREPROCESSING_ARGS will look like when executed
+    if [ -n "$session_bad_channels" ] && [ "$use_custom_preprocessing" = "true" ]; then
+        final_preprocessing_args="${base_preprocessing_args} --bad-channel-ids ${session_bad_channels}"
+        echo "  PREPROCESSING_ARGS (final): \"${final_preprocessing_args}\""
+    else
+        echo "  PREPROCESSING_ARGS: \"${base_preprocessing_args}\""
+    fi
 
     echo ""
     echo "Submitting $job_slurm_script"
