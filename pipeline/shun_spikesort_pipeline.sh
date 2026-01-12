@@ -350,6 +350,9 @@ do
 done
 echo "All spike-sorting jobs have been submitted."
 
+# Track overall success: start with true, set to false if any job fails
+overall_success=true
+
 # If we captured any job IDs, wait for them to complete before running post-processing
 if [ "${#job_ids[@]}" -gt 0 ]; then
     echo "Waiting for ${#job_ids[@]} spike-sorting jobs to finish before running post-processing..."
@@ -386,8 +389,77 @@ if [ "${#job_ids[@]}" -gt 0 ]; then
         echo "Waiting for 60 seconds before next status check..."
         sleep 60
     done
+    
+    # Check if all jobs actually succeeded (not just finished)
+    echo ""
+    echo "Checking spike-sorting job exit statuses..."
+    failed_jobs=0
+    for jid in "${job_ids[@]}"; do
+        # Get the job exit code using sacct
+        exit_code=$(sacct -j "$jid" -n --format=ExitCode --noheader 2>/dev/null | head -n 1 | awk -F: '{print $1}')
+        
+        if [ -n "$exit_code" ] && [ "$exit_code" != "0" ] && [ "$exit_code" != "0:0" ]; then
+            echo "❌ Job $jid failed with exit code: $exit_code"
+            failed_jobs=$((failed_jobs + 1))
+            overall_success=false
+        elif [ -z "$exit_code" ]; then
+            # Job info not available in sacct yet, try to verify by checking output
+            echo "⚠️  Could not determine exit code for job $jid (may still be finalizing)"
+        else
+            echo "✅ Job $jid completed successfully (exit code: $exit_code)"
+        fi
+    done
+    
+    if [ "$failed_jobs" -gt 0 ]; then
+        echo ""
+        echo "⚠️  WARNING: $failed_jobs out of ${#job_ids[@]} spike-sorting jobs failed."
+        echo "   The pipeline will continue but files will NOT be moved from todo folder."
+    fi
+    
+    # Verify expected output directories exist for all sessions
+    echo ""
+    echo "Verifying spike-sorting outputs..."
+    missing_outputs=0
+    for element in "${dir_data_array[@]}"; do
+        folder_name=$(basename "$element")
+        results_folder="${out_dir%/}/${folder_name}_output"
+        
+        # Check if spikesorted directory exists (main indicator of success)
+        if [ ! -d "${results_folder}/spikesorted" ]; then
+            echo "⚠️  Missing spikesorted directory for ${folder_name}: ${results_folder}/spikesorted"
+            missing_outputs=$((missing_outputs + 1))
+            overall_success=false
+        else
+            echo "✅ Found spikesorted directory for ${folder_name}"
+        fi
+        
+        # Also check for preprocessed directory (required for post-processing)
+        if [ ! -d "${results_folder}/preprocessed" ]; then
+            echo "⚠️  Missing preprocessed directory for ${folder_name}: ${results_folder}/preprocessed"
+            missing_outputs=$((missing_outputs + 1))
+            overall_success=false
+        fi
+    done
+    
+    if [ "$missing_outputs" -gt 0 ]; then
+        echo ""
+        echo "⚠️  WARNING: $missing_outputs session(s) missing expected output directories."
+        echo "   The pipeline will continue but files will NOT be moved from todo folder."
+    fi
 else
     echo "No job IDs were recorded; skipping wait step and running post-processing immediately."
+    # If no jobs were submitted, we should still verify outputs exist
+    echo ""
+    echo "Verifying spike-sorting outputs..."
+    for element in "${dir_data_array[@]}"; do
+        folder_name=$(basename "$element")
+        results_folder="${out_dir%/}/${folder_name}_output"
+        
+        if [ ! -d "${results_folder}/spikesorted" ]; then
+            echo "⚠️  Missing spikesorted directory for ${folder_name}: ${results_folder}/spikesorted"
+            overall_success=false
+        fi
+    done
 fi
 
 
@@ -439,10 +511,42 @@ post_status=$?
 
 if [ $post_status -ne 0 ]; then
     echo "❌ Post-processing script exited with status $post_status"
-    exit $post_status
+    overall_success=false
+    # Continue to show what was processed, but don't exit yet
+else
+    echo "✅ Post-processing completed successfully."
 fi
 
-echo "✅ Post-processing completed successfully."
+# Check if post-processing actually produced outputs (even if exit code was 0)
+# This handles cases where the script completes but skips sessions due to missing data
+echo ""
+echo "Verifying post-processing outputs..."
+postprocessing_verified=true
+for element in "${dir_data_array[@]}"; do
+    folder_name=$(basename "$element")
+    results_folder="${out_dir%/}/${folder_name}_output"
+    preprocessed_folder="${results_folder}/preprocessed"
+    
+    # Check if preprocessed folder exists and has experiment JSONs
+    if [ -d "$preprocessed_folder" ]; then
+        experiment_files=$(find "$preprocessed_folder" -name "block0_imec*.ap_recording1*.json" 2>/dev/null | wc -l)
+        if [ "$experiment_files" -eq 0 ]; then
+            echo "⚠️  No experiment JSONs found for ${folder_name} in ${preprocessed_folder}"
+            postprocessing_verified=false
+            overall_success=false
+        fi
+    else
+        echo "⚠️  Preprocessed folder missing for ${folder_name}: ${preprocessed_folder}"
+        postprocessing_verified=false
+        overall_success=false
+    fi
+done
+
+if [ "$postprocessing_verified" = false ]; then
+    echo ""
+    echo "⚠️  WARNING: Post-processing did not produce expected outputs for some sessions."
+    echo "   Files will NOT be moved from todo folder."
+fi
 
 
 # ================================
@@ -473,12 +577,29 @@ echo "✅ Finished copying all available session output folders."
 
 # ================================
 # Move recording files from todo folder to aind_input folder
+# ONLY if all spike-sorting and post-processing succeeded
 # ================================
 echo ""
-echo "Moving recording files from todo folder to the parent folder (aind_input)..."
-if [ -d "$top_dir" ] && [ "$(ls -A "$top_dir" 2>/dev/null)" ]; then
-    mv "$top_dir"/* "$backup_dir" 2>/dev/null || true
-    echo "✅ Finished moving recording files from todo folder to the parent folder (aind_input)."
+if [ "$overall_success" = true ]; then
+    echo "All spike-sorting and post-processing checks passed."
+    echo "Moving recording files from todo folder to the parent folder (aind_input)..."
+    if [ -d "$top_dir" ] && [ "$(ls -A "$top_dir" 2>/dev/null)" ]; then
+        mv "$top_dir"/* "$backup_dir" 2>/dev/null || true
+        echo "✅ Finished moving recording files from todo folder to the parent folder (aind_input)."
+    else
+        echo "⚠️  No files to move (todo folder is empty or doesn't exist)."
+    fi
 else
-    echo "⚠️  No files to move (todo folder is empty or doesn't exist)."
+    echo "❌ Spike-sorting or post-processing encountered errors."
+    echo "   NOT moving recording files from todo folder to parent folder."
+    echo "   Files remain in: $top_dir"
+    echo "   Please investigate the errors above before retrying."
+    echo ""
+    echo "Summary of issues:"
+    echo "   - Check job exit codes and output directories above"
+    echo "   - Verify that preprocessing completed successfully"
+    echo "   - Ensure all expected output directories exist"
+    echo ""
+    echo "Once issues are resolved, you can rerun the pipeline or manually move files."
+    exit 1
 fi
