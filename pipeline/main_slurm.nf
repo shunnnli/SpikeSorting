@@ -231,6 +231,8 @@ process preprocessing {
 	rm -rf capsule-repo
 
 	# Conditionally use custom preprocessing script
+	echo "[${task.tag}] DEBUG: use_custom string = '${use_custom}'"
+	echo "[${task.tag}] DEBUG: custom_script_path = ${custom_script_path}"
 	if [ "${use_custom}" = "true" ]; then
 		echo "[${task.tag}] =========================================="
 		echo "[${task.tag}] USING CUSTOM PREPROCESSING SCRIPT"
@@ -238,9 +240,11 @@ process preprocessing {
 		echo "[${task.tag}] =========================================="
 		if [ -f "${custom_script_path}" ]; then
 			cp "${custom_script_path}" capsule/code/run_capsule.py
+			echo "[${task.tag}] Successfully copied custom script"
 		else
 			echo "[${task.tag}] ERROR: Custom script not found at ${custom_script_path}"
 			echo "[${task.tag}] Please ensure run_capsule_custom.py exists in the pipeline directory"
+			ls -la "${custom_script_path}" || echo "[${task.tag}] File does not exist"
 			exit 1
 		fi
 	else
