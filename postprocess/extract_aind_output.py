@@ -296,10 +296,10 @@ for raw_rec, session_name in zip(all_raw_folders, session_names):
     os.makedirs(AIND_folder, exist_ok=True)
 
     # define subfolders
-    preProcessed = os.path.join(baseFolder, 'preprocessed')
-    postProcessed= os.path.join(baseFolder, 'postprocessed')
-    spikes       = os.path.join(baseFolder, 'spikesorted')
-    curated      = os.path.join(baseFolder, 'curated')
+    preProcessed  = os.path.join(baseFolder, 'preprocessed')
+    postProcessed = os.path.join(baseFolder, 'postprocessed')
+    spikes        = os.path.join(baseFolder, 'spikesorted')
+    curated       = os.path.join(baseFolder, 'curated')
 
     experiment_files = find_experiment_files(preProcessed)
     if not experiment_files:

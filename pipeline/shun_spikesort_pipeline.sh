@@ -430,12 +430,11 @@ if [ "${#job_ids[@]}" -gt 0 ]; then
     #         echo "✅ Job $jid completed successfully (exit code: $exit_code)"
     #     fi
     # done
-    
-    if [ "$failed_jobs" -gt 0 ]; then
-        echo ""
-        echo "⚠️  WARNING: $failed_jobs out of ${#job_ids[@]} spike-sorting jobs failed."
-        echo "   The pipeline will continue but files will NOT be moved from todo folder."
-    fi
+    # if [ "$failed_jobs" -gt 0 ]; then
+    #     echo ""
+    #     echo "⚠️  WARNING: $failed_jobs out of ${#job_ids[@]} spike-sorting jobs failed."
+    #     echo "   The pipeline will continue but files will NOT be moved from todo folder."
+    # fi
     
     # Verify expected output directories exist for all sessions
     echo ""
@@ -550,11 +549,23 @@ for element in "${dir_data_array[@]}"; do
     
     # Check if preprocessed folder exists and has experiment JSONs
     if [ -d "$preprocessed_folder" ]; then
-        experiment_files=$(find "$preprocessed_folder" -name "block0_imec*.ap_recording1*.json" 2>/dev/null | wc -l)
+        # Try multiple patterns to match different naming conventions
+        # Pattern 1: block0_imec*.ap_recording1*.json (matches block0_imec0.ap_recording1.json)
+        # Pattern 2: block0_imec*.ap_recording*.json (more flexible)
+        experiment_files=$(find "$preprocessed_folder" \( -name "block0_imec*.ap_recording1*.json" -o -name "block0_imec*.ap_recording*.json" \) 2>/dev/null | wc -l)
         if [ "$experiment_files" -eq 0 ]; then
-            echo "⚠️  No experiment JSONs found for ${folder_name} in ${preprocessed_folder}"
+            # Also check if any .json files exist at all (for debugging)
+            any_json=$(find "$preprocessed_folder" -maxdepth 1 -name "*.json" 2>/dev/null | wc -l)
+            if [ "$any_json" -gt 0 ]; then
+                echo "⚠️  No experiment JSONs matching pattern for ${folder_name} in ${preprocessed_folder}"
+                echo "   (Found $any_json other JSON file(s), but not matching expected pattern)"
+            else
+                echo "⚠️  No experiment JSONs found for ${folder_name} in ${preprocessed_folder}"
+            fi
             postprocessing_verified=false
             overall_success=false
+        else
+            echo "✅ Found $experiment_files experiment JSON file(s) for ${folder_name}"
         fi
     else
         echo "⚠️  Preprocessed folder missing for ${folder_name}: ${preprocessed_folder}"
