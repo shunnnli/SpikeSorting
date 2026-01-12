@@ -502,16 +502,9 @@ if __name__ == "__main__":
                     else:
                         recording_rm_out = recording_filt_full
 
-                    # Common reference denoising
-                    try:
-                        recording_processed_cmr = spre.common_reference(
-                            recording_rm_out, **preprocessing_params["common_reference"]
-                        )
-                        if recording_processed_cmr is None:
-                            raise RuntimeError("common_reference returned None")
-                    except Exception as e:
-                        print(f"\t[custom] Common reference failed: {e}")
-                        raise RuntimeError(f"Common reference preprocessing failed: {e}")
+                    recording_processed_cmr = spre.common_reference(
+                        recording_rm_out, **preprocessing_params["common_reference"]
+                    )
 
                     # ================================================================
                     # NEW: Combine auto-detected + manual bad channels for interpolation
@@ -563,10 +556,6 @@ if __name__ == "__main__":
                             recording_processed = recording_processed_cmr
                             preprocessing_notes += "\n- Destripe failed, fell back to CMR."
                         # ================================================================
-
-                    # Safety check: ensure recording_processed is not None
-                    if recording_processed is None:
-                        raise RuntimeError("recording_processed is None after denoising. Cannot continue.")
 
                     if preprocessing_params["remove_bad_channels"]:
                         print(f"\tRemoving {len(bad_channel_ids)} channels after {denoising_strategy} preprocessing")
