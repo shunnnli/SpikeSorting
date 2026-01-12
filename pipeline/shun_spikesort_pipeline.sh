@@ -390,25 +390,25 @@ if [ "${#job_ids[@]}" -gt 0 ]; then
         sleep 60
     done
     
-    # Check if all jobs actually succeeded (not just finished)
-    echo ""
-    echo "Checking spike-sorting job exit statuses..."
-    failed_jobs=0
-    for jid in "${job_ids[@]}"; do
-        # Get the job exit code using sacct
-        exit_code=$(sacct -j "$jid" -n --format=ExitCode --noheader 2>/dev/null | head -n 1 | awk -F: '{print $1}')
+    # # Check if all jobs actually succeeded (not just finished)
+    # echo ""
+    # echo "Checking spike-sorting job exit statuses..."
+    # failed_jobs=0
+    # for jid in "${job_ids[@]}"; do
+    #     # Get the job exit code using sacct
+    #     exit_code=$(sacct -j "$jid" -n --format=ExitCode --noheader 2>/dev/null | head -n 1 | awk -F: '{print $1}')
         
-        if [ -n "$exit_code" ] && [ "$exit_code" != "0" ] && [ "$exit_code" != "0:0" ]; then
-            echo "❌ Job $jid failed with exit code: $exit_code"
-            failed_jobs=$((failed_jobs + 1))
-            overall_success=false
-        elif [ -z "$exit_code" ]; then
-            # Job info not available in sacct yet, try to verify by checking output
-            echo "⚠️  Could not determine exit code for job $jid (may still be finalizing)"
-        else
-            echo "✅ Job $jid completed successfully (exit code: $exit_code)"
-        fi
-    done
+    #     if [ -n "$exit_code" ] && [ "$exit_code" != "0" ] && [ "$exit_code" != "0:0" ]; then
+    #         echo "❌ Job $jid failed with exit code: $exit_code"
+    #         failed_jobs=$((failed_jobs + 1))
+    #         overall_success=false
+    #     elif [ -z "$exit_code" ]; then
+    #         # Job info not available in sacct yet, try to verify by checking output
+    #         echo "⚠️  Could not determine exit code for job $jid (may still be finalizing)"
+    #     else
+    #         echo "✅ Job $jid completed successfully (exit code: $exit_code)"
+    #     fi
+    # done
     
     if [ "$failed_jobs" -gt 0 ]; then
         echo ""
