@@ -115,9 +115,11 @@ else
 fi
 
 # Function to look up bad channels for a given folder name
+# Returns a comma-separated list of channel IDs (e.g., "20,206,3,313")
 get_bad_channels_for_session() {
     local folder_name="$1"
     local matched_channels=""
+    local all_channels=()
     
     echo "  Checking folder_name='$folder_name' against ${#bad_channels_map[@]} patterns" >&2
     
@@ -125,15 +127,24 @@ get_bad_channels_for_session() {
         # echo "    DEBUG: Testing pattern='$pattern'" >&2
         if echo "$folder_name" | grep -qi "$pattern"; then
             # echo "    DEBUG: MATCH! Pattern '$pattern' matches folder '$folder_name'" >&2
-            if [ -n "$matched_channels" ]; then
-                matched_channels="$matched_channels | ${bad_channels_map[$pattern]} (from '$pattern')"
-            else
-                matched_channels="${bad_channels_map[$pattern]} (from '$pattern')"
-            fi
-        else
-            echo "    No match for pattern '$pattern'" >&2
+            # Extract channel list from the map value (remove spaces, split by comma)
+            local channels="${bad_channels_map[$pattern]}"
+            # Split by comma and add each channel to our array
+            IFS=',' read -ra CHANNELS <<< "$channels"
+            for ch in "${CHANNELS[@]}"; do
+                ch_trimmed=$(echo "$ch" | xargs)  # trim whitespace
+                if [ -n "$ch_trimmed" ]; then
+                    all_channels+=("$ch_trimmed")
+                fi
+            done
         fi
     done
+    
+    # Remove duplicates while preserving order
+    if [ ${#all_channels[@]} -gt 0 ]; then
+        # Use awk to remove duplicates
+        matched_channels=$(printf '%s\n' "${all_channels[@]}" | awk '!seen[$0]++' | tr '\n' ',' | sed 's/,$//')
+    fi
     
     echo "$matched_channels"
 }
@@ -293,10 +304,11 @@ do
     echo "  EXCLUDE_FIRST_SEC for ${folder_name}: ${session_exclude_first_sec}s"
     
     # Look up session-specific bad channels using pre-loaded map (only when using custom preprocessing)
+    session_bad_channels=""
     if [ "$use_custom_preprocessing" = "true" ]; then
-        matched_bad_channels=$(get_bad_channels_for_session "$folder_name")
-        if [ -n "$matched_bad_channels" ]; then
-            echo "  BAD_CHANNELS for ${folder_name}: $matched_bad_channels"
+        session_bad_channels=$(get_bad_channels_for_session "$folder_name")
+        if [ -n "$session_bad_channels" ]; then
+            echo "  BAD_CHANNELS for ${folder_name}: $session_bad_channels"
         else
             echo "  BAD_CHANNELS for ${folder_name}: (none - no matching pattern)"
         fi
@@ -321,8 +333,10 @@ do
     # Update EXCLUDE_LAST_SEC with session-specific value
     sed "s|^EXCLUDE_LAST_SEC=.*|EXCLUDE_LAST_SEC=\"${session_exclude_last_sec}\"|g" 4.tmp.slrm > 5.tmp.slrm
     # Update EXCLUDE_FIRST_SEC with session-specific value
-    sed "s|^EXCLUDE_FIRST_SEC=.*|EXCLUDE_FIRST_SEC=\"${session_exclude_first_sec}\"|g" 5.tmp.slrm > "$job_slurm_script"
-    rm 1.tmp.slrm 2.tmp.slrm 3.tmp.slrm 4.tmp.slrm 5.tmp.slrm
+    sed "s|^EXCLUDE_FIRST_SEC=.*|EXCLUDE_FIRST_SEC=\"${session_exclude_first_sec}\"|g" 5.tmp.slrm > 6.tmp.slrm
+    # Update BAD_CHANNELS with session-specific value (empty string if none)
+    sed "s|^BAD_CHANNELS=.*|BAD_CHANNELS=\"${session_bad_channels}\"|g" 6.tmp.slrm > "$job_slurm_script"
+    rm 1.tmp.slrm 2.tmp.slrm 3.tmp.slrm 4.tmp.slrm 5.tmp.slrm 6.tmp.slrm
 
     echo ""
     echo "Submitting $job_slurm_script"

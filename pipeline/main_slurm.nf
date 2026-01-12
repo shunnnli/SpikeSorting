@@ -256,10 +256,6 @@ process preprocessing {
 			ls -la "${custom_script_path}" || echo "[${task.tag}] File does not exist"
 			exit 1
 		fi
-	else
-		echo "[${task.tag}] =========================================="
-		echo "[${task.tag}] USING DEFAULT PREPROCESSING SCRIPT"
-		echo "[${task.tag}] =========================================="
 	fi
 
 	echo "[${task.tag}] allocated time: ${task.time}"
@@ -267,6 +263,7 @@ process preprocessing {
 	echo "[${task.tag}] running capsule..."
 	cd capsule/code
 	chmod +x run
+	echo "[${task.tag}] Preprocessing args: ${params.preprocessing_args}"
 	./run ${params.preprocessing_args}
 
 	echo "[${task.tag}] completed!"
