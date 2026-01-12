@@ -30,8 +30,17 @@ else
 println "Using RUNMODE: ${runmode}"
 
 // set use_custom_preprocessing
+// Nextflow may convert "true"/"false" strings to booleans, so check both
 if ("use_custom_preprocessing" in params_keys) {
-	use_custom_preprocessing = params.use_custom_preprocessing == "true"
+	def param_value = params.use_custom_preprocessing
+	// Handle both string and boolean values
+	if (param_value instanceof Boolean) {
+		use_custom_preprocessing = param_value
+	} else {
+		// It's a string, check if it equals "true" (case-insensitive)
+		def str_value = param_value.toString().toLowerCase().trim()
+		use_custom_preprocessing = (str_value == "true" || str_value == "1" || str_value == "yes")
+	}
 }
 else
 {
