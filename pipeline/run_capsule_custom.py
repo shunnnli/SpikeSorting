@@ -502,9 +502,17 @@ if __name__ == "__main__":
                     else:
                         recording_rm_out = recording_filt_full
 
-                    recording_processed_cmr = spre.common_reference(
-                        recording_rm_out, **preprocessing_params["common_reference"]
-                    )
+                    # Common reference denoising
+                    try:
+                        recording_processed_cmr = spre.common_reference(
+                            recording_rm_out, **preprocessing_params["common_reference"]
+                        )
+                        if recording_processed_cmr is None:
+                            raise RuntimeError("common_reference returned None")
+                    except Exception as e:
+                        error_msg = f"Common reference preprocessing failed: {e}"
+                        print(f"\t[custom] ERROR: {error_msg}")
+                        raise RuntimeError(error_msg)
 
                     # ================================================================
                     # NEW: Combine auto-detected + manual bad channels for interpolation
@@ -529,6 +537,8 @@ if __name__ == "__main__":
                         recording_hp_spatial = spre.highpass_spatial_filter(
                             recording_interp, **preprocessing_params["highpass_spatial_filter"]
                         )
+                        if recording_hp_spatial is None:
+                            print(f"\t[custom] Highpass spatial filter returned None")
                     except Exception as e:
                         print(f"\t[custom] Highpass spatial filter failed: {e}")
                         recording_hp_spatial = None
@@ -556,6 +566,16 @@ if __name__ == "__main__":
                             recording_processed = recording_processed_cmr
                             preprocessing_notes += "\n- Destripe failed, fell back to CMR."
                         # ================================================================
+
+                    # Safety check: ensure recording_processed is not None before removing channels
+                    if recording_processed is None:
+                        error_msg = (
+                            f"recording_processed is None after denoising strategy '{denoising_strategy}'. "
+                            f"This should not happen. recording_processed_cmr: {recording_processed_cmr is not None}, "
+                            f"recording_hp_spatial: {recording_hp_spatial is not None}"
+                        )
+                        print(f"\t[custom] ERROR: {error_msg}")
+                        raise RuntimeError(error_msg)
 
                     if preprocessing_params["remove_bad_channels"]:
                         print(f"\tRemoving {len(bad_channel_ids)} channels after {denoising_strategy} preprocessing")
