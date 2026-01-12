@@ -89,15 +89,15 @@ if [ -f "$bad_channels_config_file" ]; then
         key=$(echo "$key" | xargs)
         value=$(echo "$value" | xargs)
         # Debug output
-        echo "  DEBUG Line $line_num: key_orig='$key_orig', value_orig='$value_orig'"
-        echo "  DEBUG Line $line_num: key_trimmed='$key', value_trimmed='$value'"
+        # echo "  DEBUG Line $line_num: key_orig='$key_orig', value_orig='$value_orig'"
+        # echo "  DEBUG Line $line_num: key_trimmed='$key', value_trimmed='$value'"
         # Skip if key or value is empty after trimming
         if [[ -z "$key" ]] || [[ -z "$value" ]]; then
             echo "  DEBUG Line $line_num: SKIPPED (empty after trim)"
             continue
         fi
         bad_channels_map["$key"]="$value"
-        echo "  DEBUG Line $line_num: LOADED pattern '$key' with channels: $value"
+        # echo "  LOADED pattern '$key' with channels: $value"
     done < "$bad_channels_config_file"
     echo "✅ Loaded ${#bad_channels_map[@]} session-specific bad channel entries"
     if [ "${#bad_channels_map[@]}" -gt 0 ]; then
@@ -119,19 +119,19 @@ get_bad_channels_for_session() {
     local folder_name="$1"
     local matched_channels=""
     
-    echo "  DEBUG: Checking folder_name='$folder_name' against ${#bad_channels_map[@]} patterns" >&2
+    echo "  Checking folder_name='$folder_name' against ${#bad_channels_map[@]} patterns" >&2
     
     for pattern in "${!bad_channels_map[@]}"; do
-        echo "    DEBUG: Testing pattern='$pattern'" >&2
+        # echo "    DEBUG: Testing pattern='$pattern'" >&2
         if echo "$folder_name" | grep -qi "$pattern"; then
-            echo "    DEBUG: MATCH! Pattern '$pattern' matches folder '$folder_name'" >&2
+            # echo "    DEBUG: MATCH! Pattern '$pattern' matches folder '$folder_name'" >&2
             if [ -n "$matched_channels" ]; then
                 matched_channels="$matched_channels | ${bad_channels_map[$pattern]} (from '$pattern')"
             else
                 matched_channels="${bad_channels_map[$pattern]} (from '$pattern')"
             fi
         else
-            echo "    DEBUG: No match for pattern '$pattern'" >&2
+            echo "    No match for pattern '$pattern'" >&2
         fi
     done
     
