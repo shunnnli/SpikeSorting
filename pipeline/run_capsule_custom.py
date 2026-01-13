@@ -16,12 +16,11 @@ import json
 import pickle
 import time
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 # SPIKEINTERFACE
 import spikeinterface as si
 import spikeinterface.preprocessing as spre
-
 from spikeinterface.core.core_tools import check_json
 
 # AIND
@@ -243,11 +242,219 @@ def get_channel_ids_from_names(recording, channel_names: List[str]) -> np.ndarra
     return np.array(matched_ids)
 
 
+def detect_multi_shank_probe(recording, recording_dict: dict, data_folder: Path) -> Tuple[bool, Optional[int]]:
+    """
+    Detect if a recording is from a multi-shank probe.
+    
+    For SpikeGLX data, checks:
+    1. If 'group' property already exists (indicates grouping is set up)
+    2. Probe geometry for shank information
+    3. SpikeGLX metadata files for imDatPrb_type field
+    
+    Args:
+        recording: SpikeInterface recording object
+        recording_dict: Recording dictionary from job config
+        data_folder: Path to data folder
+    
+    Returns:
+        Tuple of (is_multi_shank: bool, num_shanks: Optional[int])
+        If detection fails, defaults to NP2 4-shank (returns (True, 4))
+    """
+    # Check if 'group' property already exists
+    if "group" in recording.get_property_keys():
+        unique_groups = np.unique(recording.get_property("group"))
+        num_groups = len(unique_groups)
+        if num_groups > 1:
+            print(f"\t[custom] Found existing 'group' property with {num_groups} groups (multi-shank detected)")
+            return True, num_groups
+    
+    # Try to detect from probe geometry
+    try:
+        probe = recording.get_probe()
+        if probe is not None:
+            # Check if probe has shank_ids
+            if hasattr(probe, 'get_shank_ids'):
+                shank_ids = probe.get_shank_ids()
+                if shank_ids is not None and len(shank_ids) > 1:
+                    num_shanks = len(np.unique(shank_ids))
+                    print(f"\t[custom] Detected {num_shanks} shanks from probe geometry")
+                    return True, num_shanks
+            # Check channel properties for shank information
+            if probe.contact_ids is not None:
+                # Try to infer from probe structure
+                # For NP2 4-shank: typically 1280 channels, 320 per shank
+                num_channels = len(probe.contact_ids)
+                if num_channels >= 1280:
+                    print(f"\t[custom] Detected high channel count ({num_channels}), assuming NP2 4-shank")
+                    return True, 4
+    except Exception as e:
+        print(f"\t[custom] Could not detect from probe geometry: {e}")
+    
+    # Try to detect from SpikeGLX metadata files
+    try:
+        # Look for .meta files in the recording path
+        # SpikeGLX metadata typically in same directory as binary files
+        meta_files = []
+        if "kwargs" in recording_dict:
+            file_path = recording_dict.get("kwargs", {}).get("file_path")
+            if file_path:
+                meta_path = Path(file_path).parent / f"{Path(file_path).stem}.meta"
+                if meta_path.exists():
+                    meta_files.append(meta_path)
+        
+        # Also search in data folder for .meta files
+        if not meta_files:
+            meta_files = list(data_folder.glob("*.meta"))
+        
+        for meta_file in meta_files:
+            try:
+                with open(meta_file, 'r') as f:
+                    for line in f:
+                        if 'imDatPrb_type' in line:
+                            try:
+                                probe_type = int(line.split('=')[1].strip())
+                                if probe_type == 24:
+                                    print(f"\t[custom] Detected NP2 4-shank from metadata (imDatPrb_type=24)")
+                                    return True, 4
+                                elif probe_type == 21:
+                                    print(f"\t[custom] Detected NP2 1-shank from metadata (imDatPrb_type=21)")
+                                    return False, 1
+                                elif probe_type == 0:
+                                    print(f"\t[custom] Detected NP1 1-shank from metadata (imDatPrb_type=0)")
+                                    return False, 1
+                            except (ValueError, IndexError):
+                                continue
+            except Exception as e:
+                continue
+    except Exception as e:
+        print(f"\t[custom] Could not read metadata files: {e}")
+    
+    # Default to NP2 4-shank if detection fails (per user requirement)
+    print(f"\t[custom] Detection failed, defaulting to NP2 4-shank")
+    return True, 4
+
+
+def setup_channel_grouping(recording, num_shanks: int) -> si.BaseRecording:
+    """
+    Set up channel grouping for multi-shank probes.
+    
+    For NP2 4-shank probes, assumes ~320 channels per shank.
+    Channels are assigned to shanks based on their index.
+    
+    Args:
+        recording: SpikeInterface recording object
+        num_shanks: Number of shanks
+    
+    Returns:
+        Recording with 'group' property set
+    """
+    # Check if grouping already exists
+    if "group" in recording.get_property_keys():
+        print(f"\t[custom] Channel grouping already exists")
+        return recording
+    
+    # Try to use probe shank_ids if available
+    try:
+        probe = recording.get_probe()
+        if probe is not None:
+            # Check if probe has shank_ids attribute
+            if hasattr(probe, 'shank_ids') and probe.shank_ids is not None:
+                shank_ids = probe.shank_ids
+                if len(np.unique(shank_ids)) > 1:
+                    # Map contact_ids to channel_ids
+                    contact_to_shank = {contact_id: shank_id for contact_id, shank_id in zip(probe.contact_ids, shank_ids)}
+                    channel_ids = recording.get_channel_ids()
+                    groups = [contact_to_shank.get(ch_id, 0) for ch_id in channel_ids]
+                    recording = recording.set_channel_property(key="group", values=groups)
+                    unique_groups = np.unique(groups)
+                    print(f"\t[custom] Set up channel grouping from probe geometry: {len(unique_groups)} shanks")
+                    return recording
+    except Exception as e:
+        print(f"\t[custom] Could not use probe shank_ids: {e}")
+    
+    # Fallback: assign groups based on channel index (assumes sequential shank assignment)
+    channel_ids = recording.get_channel_ids()
+    num_channels = len(channel_ids)
+    
+    # Calculate channels per shank
+    channels_per_shank = num_channels // num_shanks
+    
+    # Assign groups based on channel index
+    groups = []
+    for i, ch_id in enumerate(channel_ids):
+        shank_id = i // channels_per_shank
+        # Ensure we don't exceed num_shanks
+        shank_id = min(shank_id, num_shanks - 1)
+        groups.append(shank_id)
+    
+    # Set the group property
+    recording = recording.set_channel_property(key="group", values=groups)
+    
+    unique_groups = np.unique(groups)
+    print(f"\t[custom] Set up channel grouping: {len(unique_groups)} shanks, ~{channels_per_shank} channels per shank")
+    
+    return recording
+
+
 def dump_to_json_or_pickle(recording, results_folder, base_name, relative_to):
     if recording.check_serializability("json"):
         recording.dump_to_json(results_folder / f"{base_name}.json", relative_to=relative_to)
     else:
         recording.dump_to_pickle(results_folder / f"{base_name}.pkl", relative_to=relative_to)
+
+
+def apply_by_group(recording, func, func_kwargs, group_property="group"):
+    """
+    Apply a SpikeInterface preprocessing function per channel-group (e.g., per shank),
+    then aggregate back into a single recording.
+    """
+    func_kwargs = func_kwargs or {}
+
+    # No grouping info -> just run normally
+    if group_property not in recording.get_property_keys():
+        return func(recording, **func_kwargs)
+
+    split = recording.split_by(group_property)
+
+    # If split_by returns a dict with >1 group, SpikeInterface applies preprocessing per group
+    # when you pass the dict, and returns a dict back. :contentReference[oaicite:2]{index=2}
+    if isinstance(split, dict) and len(split) > 1:
+        processed = func(split, **func_kwargs)
+        keys = sorted(processed.keys(), key=str)
+        return si.aggregate_channels([processed[k] for k in keys])
+
+    return func(recording, **func_kwargs)
+
+
+def detect_bad_channels_by_group(recording, detect_kwargs, group_property="group"):
+    """
+    Run detect_bad_channels() per channel-group (e.g., per shank) and merge the returned
+    channel_labels back to the full recording channel order.
+    """
+    detect_kwargs = detect_kwargs or {}
+
+    # If no grouping, just run normally
+    if group_property not in recording.get_property_keys():
+        _, labels = spre.detect_bad_channels(recording, **detect_kwargs)
+        return labels
+
+    split = recording.split_by(group_property)
+    if not isinstance(split, dict) or len(split) <= 1:
+        _, labels = spre.detect_bad_channels(recording, **detect_kwargs)
+        return labels
+
+    # Allocate full labels array aligned to recording.channel_ids order
+    full_channel_ids = list(recording.channel_ids)
+    id_to_index = {ch_id: i for i, ch_id in enumerate(full_channel_ids)}
+    full_labels = np.empty(len(full_channel_ids), dtype=object)
+
+    for gid, rec_g in split.items():
+        _, labels_g = spre.detect_bad_channels(rec_g, **detect_kwargs)
+        for ch_id, lab in zip(rec_g.channel_ids, labels_g):
+            full_labels[id_to_index[ch_id]] = lab
+
+    return full_labels
+
 
 
 if __name__ == "__main__":
@@ -373,6 +580,15 @@ if __name__ == "__main__":
                 print("Resetting recording timestamps")
                 recording.reset_times()
 
+            # ================================================================
+            # NEW: Auto-detect multi-shank probe and set up grouping
+            # ================================================================
+            is_multi_shank, num_shanks = detect_multi_shank_probe(recording, recording_dict, data_folder)
+            if is_multi_shank:
+                recording = setup_channel_grouping(recording, num_shanks)
+                preprocessing_notes += f"\n- Multi-shank probe detected ({num_shanks} shanks), grouping enabled"
+            # ================================================================
+
             skip_processing = False
             vizualization_file_is_json_serializable = True
 
@@ -461,9 +677,15 @@ if __name__ == "__main__":
                 skip_processing = True
             else:
                 # IBL bad channel detection
-                _, channel_labels = spre.detect_bad_channels(
-                    recording_filt_full, **preprocessing_params["detect_bad_channels"]
+                # _, channel_labels = spre.detect_bad_channels(
+                #     recording_filt_full, **preprocessing_params["detect_bad_channels"]
+                # )
+                channel_labels = detect_bad_channels_by_group(
+                    recording_filt_full,
+                    preprocessing_params["detect_bad_channels"],
+                    group_property="group",
                 )
+
                 dead_channel_mask = channel_labels == "dead"
                 noise_channel_mask = channel_labels == "noise"
                 out_channel_mask = channel_labels == "out"
@@ -511,8 +733,14 @@ if __name__ == "__main__":
 
                     # Common reference denoising
                     try:
-                        recording_processed_cmr = spre.common_reference(
-                            recording_rm_out, **preprocessing_params["common_reference"]
+                        # recording_processed_cmr = spre.common_reference(
+                        #     recording_rm_out, **preprocessing_params["common_reference"]
+                        # )
+                        recording_processed_cmr = apply_by_group(
+                            recording_rm_out,
+                            spre.common_reference,
+                            preprocessing_params["common_reference"],
+                            group_property="group",
                         )
                         if recording_processed_cmr is None:
                             raise RuntimeError("common_reference returned None")
@@ -541,8 +769,14 @@ if __name__ == "__main__":
                     
                     # protection against short probes
                     try:
-                        recording_hp_spatial = spre.highpass_spatial_filter(
-                            recording_interp, **preprocessing_params["highpass_spatial_filter"]
+                        # recording_hp_spatial = spre.highpass_spatial_filter(
+                        #     recording_interp, **preprocessing_params["highpass_spatial_filter"]
+                        # )
+                        recording_hp_spatial = apply_by_group(
+                            recording_interp,
+                            spre.highpass_spatial_filter,
+                            preprocessing_params["highpass_spatial_filter"],
+                            group_property="group",
                         )
                         if recording_hp_spatial is None:
                             print(f"\t[custom] Highpass spatial filter returned None")
@@ -571,6 +805,7 @@ if __name__ == "__main__":
                         else:
                             print(f"\t[custom] Destripe failed, falling back to CMR")
                             recording_processed = recording_processed_cmr
+                            denoising_strategy = "cmr"
                             preprocessing_notes += "\n- Destripe failed, fell back to CMR."
                         # ================================================================
 
