@@ -416,12 +416,14 @@ def apply_by_group(recording, func, func_kwargs, group_property="group"):
 
     split = recording.split_by(group_property)
 
-    # If split_by returns a dict with >1 group, SpikeInterface applies preprocessing per group
-    # when you pass the dict, and returns a dict back. :contentReference[oaicite:2]{index=2}
+    # If split_by returns a dict with >1 group, process each recording separately
+    # then aggregate them back together
     if isinstance(split, dict) and len(split) > 1:
-        processed = func(split, **func_kwargs)
-        keys = sorted(processed.keys(), key=str)
-        return si.aggregate_channels([processed[k] for k in keys])
+        processed_dict = {}
+        keys = sorted(split.keys(), key=str)
+        for key in keys:
+            processed_dict[key] = func(split[key], **func_kwargs)
+        return si.aggregate_channels([processed_dict[k] for k in keys])
 
     return func(recording, **func_kwargs)
 
