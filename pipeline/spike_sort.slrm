@@ -108,9 +108,9 @@ export BAD_CHANNELS
 
 # Build preprocessing args
 # PREPROCESSING_ARGS="--denoising cmr --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP}"
-# PREPROCESSING_ARGS="--denoising cmr --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP} --no-remove-bad-channels"
+PREPROCESSING_ARGS="--denoising cmr --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP} --no-remove-bad-channels"
 # PREPROCESSING_ARGS="--denoising destripe --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP}"
-PREPROCESSING_ARGS="--denoising destripe --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP} --no-remove-bad-channels"
+# PREPROCESSING_ARGS="--denoising destripe --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP} --no-remove-bad-channels"
 
 # Append bad channels if provided (only when using custom preprocessing)
 if [ -n "${BAD_CHANNELS}" ]; then
