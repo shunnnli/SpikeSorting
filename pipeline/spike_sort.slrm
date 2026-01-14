@@ -29,6 +29,10 @@ INPUT_DATA_TYPE="spikeglx"
 
 # ================================
 # Use custom preprocessing script (with manual bad channels support)
+
+# To look up outputs of preprocessing script, run the following command:
+# 1. Find the work_dir for preprocessng script: cat nextflow.log | grep "preprocessing"
+# 2. Go to work_dir and find the output of preprocessing script: grep "\[custom\]" .command.log
 # ================================
 # Set to "true" to use run_capsule_custom.py (supports --bad-channel-ids)
 # Set to "false" to use the default aind-ephys-preprocessing script
