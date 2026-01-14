@@ -106,6 +106,9 @@ export EXCLUDE_FIRST_SEC
 BAD_CHANNELS=""
 export BAD_CHANNELS
 
+# ================================
+# Build preprocessing args
+# ================================
 # Build preprocessing args
 # PREPROCESSING_ARGS="--denoising cmr --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP}"
 # PREPROCESSING_ARGS="--denoising cmr --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP} --no-remove-bad-channels"
