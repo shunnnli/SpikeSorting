@@ -260,37 +260,68 @@ def detect_multi_shank_probe(recording, recording_dict: dict, data_folder: Path)
         Tuple of (is_multi_shank: bool, num_shanks: Optional[int])
         If detection fails, defaults to NP2 4-shank (returns (True, 4))
     """
+    num_channels = recording.get_num_channels()
+    print(f"\t[custom] Detection method 1: Checking for existing 'group' property...")
+    
     # Check if 'group' property already exists
     if "group" in recording.get_property_keys():
         unique_groups = np.unique(recording.get_property("group"))
         num_groups = len(unique_groups)
         if num_groups > 1:
-            print(f"\t[custom] Found existing 'group' property with {num_groups} groups (multi-shank detected)")
+            print(f"\t[custom] ✓ Found existing 'group' property with {num_groups} groups (multi-shank detected)")
             return True, num_groups
+        else:
+            print(f"\t[custom]   Found 'group' property but only {num_groups} group(s) - continuing detection")
+    else:
+        print(f"\t[custom]   No existing 'group' property found")
     
     # Try to detect from probe geometry
+    print(f"\t[custom] Detection method 2: Checking probe geometry...")
     try:
         probe = recording.get_probe()
         if probe is not None:
+            print(f"\t[custom]   Probe found, checking for shank information...")
             # Check if probe has shank_ids
             if hasattr(probe, 'get_shank_ids'):
-                shank_ids = probe.get_shank_ids()
-                if shank_ids is not None and len(shank_ids) > 1:
-                    num_shanks = len(np.unique(shank_ids))
-                    print(f"\t[custom] Detected {num_shanks} shanks from probe geometry")
+                try:
+                    shank_ids = probe.get_shank_ids()
+                    if shank_ids is not None and len(shank_ids) > 1:
+                        num_shanks = len(np.unique(shank_ids))
+                        print(f"\t[custom] ✓ Detected {num_shanks} shanks from probe.get_shank_ids()")
+                        return True, num_shanks
+                    else:
+                        print(f"\t[custom]   probe.get_shank_ids() returned {len(shank_ids) if shank_ids is not None else 'None'} shank(s)")
+                except Exception as e:
+                    print(f"\t[custom]   probe.get_shank_ids() failed: {e}")
+            
+            # Check if probe has shank_ids attribute directly
+            if hasattr(probe, 'shank_ids') and probe.shank_ids is not None:
+                shank_ids = probe.shank_ids
+                unique_shanks = np.unique(shank_ids)
+                if len(unique_shanks) > 1:
+                    num_shanks = len(unique_shanks)
+                    print(f"\t[custom] ✓ Detected {num_shanks} shanks from probe.shank_ids attribute")
                     return True, num_shanks
+            
             # Check channel properties for shank information
             if probe.contact_ids is not None:
+                probe_num_channels = len(probe.contact_ids)
+                print(f"\t[custom]   Probe has {probe_num_channels} contacts, recording has {num_channels} channels")
                 # Try to infer from probe structure
                 # For NP2 4-shank: typically 1280 channels, 320 per shank
-                num_channels = len(probe.contact_ids)
-                if num_channels >= 1280:
-                    print(f"\t[custom] Detected high channel count ({num_channels}), assuming NP2 4-shank")
+                if probe_num_channels >= 1280:
+                    print(f"\t[custom] ✓ Detected high channel count ({probe_num_channels}), assuming NP2 4-shank")
                     return True, 4
+                elif num_channels >= 1280:
+                    print(f"\t[custom] ✓ Recording has high channel count ({num_channels}), assuming NP2 4-shank")
+                    return True, 4
+        else:
+            print(f"\t[custom]   No probe geometry found")
     except Exception as e:
-        print(f"\t[custom] Could not detect from probe geometry: {e}")
+        print(f"\t[custom]   Could not detect from probe geometry: {e}")
     
     # Try to detect from SpikeGLX metadata files
+    print(f"\t[custom] Detection method 3: Checking SpikeGLX metadata files...")
     try:
         # Look for .meta files in the recording path
         # SpikeGLX metadata typically in same directory as binary files
@@ -301,36 +332,49 @@ def detect_multi_shank_probe(recording, recording_dict: dict, data_folder: Path)
                 meta_path = Path(file_path).parent / f"{Path(file_path).stem}.meta"
                 if meta_path.exists():
                     meta_files.append(meta_path)
+                    print(f"\t[custom]   Found metadata file: {meta_path}")
         
         # Also search in data folder for .meta files
         if not meta_files:
-            meta_files = list(data_folder.glob("*.meta"))
+            found_meta = list(data_folder.glob("*.meta"))
+            meta_files.extend(found_meta)
+            if found_meta:
+                print(f"\t[custom]   Found {len(found_meta)} metadata file(s) in data folder")
         
-        for meta_file in meta_files:
-            try:
-                with open(meta_file, 'r') as f:
-                    for line in f:
-                        if 'imDatPrb_type' in line:
-                            try:
-                                probe_type = int(line.split('=')[1].strip())
-                                if probe_type == 24:
-                                    print(f"\t[custom] Detected NP2 4-shank from metadata (imDatPrb_type=24)")
-                                    return True, 4
-                                elif probe_type == 21:
-                                    print(f"\t[custom] Detected NP2 1-shank from metadata (imDatPrb_type=21)")
-                                    return False, 1
-                                elif probe_type == 0:
-                                    print(f"\t[custom] Detected NP1 1-shank from metadata (imDatPrb_type=0)")
-                                    return False, 1
-                            except (ValueError, IndexError):
-                                continue
-            except Exception as e:
-                continue
+        if not meta_files:
+            print(f"\t[custom]   No metadata files found")
+        else:
+            for meta_file in meta_files:
+                try:
+                    print(f"\t[custom]   Reading metadata file: {meta_file.name}")
+                    with open(meta_file, 'r') as f:
+                        for line in f:
+                            if 'imDatPrb_type' in line:
+                                try:
+                                    probe_type = int(line.split('=')[1].strip())
+                                    print(f"\t[custom]   Found imDatPrb_type={probe_type}")
+                                    if probe_type == 24:
+                                        print(f"\t[custom] ✓ Detected NP2 4-shank from metadata (imDatPrb_type=24)")
+                                        return True, 4
+                                    elif probe_type == 21:
+                                        print(f"\t[custom] ✓ Detected NP2 1-shank from metadata (imDatPrb_type=21)")
+                                        return False, 1
+                                    elif probe_type == 0:
+                                        print(f"\t[custom] ✓ Detected NP1 1-shank from metadata (imDatPrb_type=0)")
+                                        return False, 1
+                                    else:
+                                        print(f"\t[custom]   Unknown probe type: {probe_type}")
+                                except (ValueError, IndexError) as e:
+                                    print(f"\t[custom]   Could not parse imDatPrb_type: {e}")
+                                    continue
+                except Exception as e:
+                    print(f"\t[custom]   Error reading {meta_file}: {e}")
+                    continue
     except Exception as e:
-        print(f"\t[custom] Could not read metadata files: {e}")
+        print(f"\t[custom]   Could not read metadata files: {e}")
     
     # Default to NP2 4-shank if detection fails (per user requirement)
-    print(f"\t[custom] Detection failed, defaulting to NP2 4-shank")
+    print(f"\t[custom] ⚠ All detection methods failed, defaulting to NP2 4-shank (as requested)")
     return True, 4
 
 
@@ -403,15 +447,23 @@ def dump_to_json_or_pickle(recording, results_folder, base_name, relative_to):
         recording.dump_to_pickle(results_folder / f"{base_name}.pkl", relative_to=relative_to)
 
 
-def apply_by_group(recording, func, func_kwargs, group_property="group"):
+def apply_by_group(recording, func, func_kwargs, group_property="group", func_name="function"):
     """
     Apply a SpikeInterface preprocessing function per channel-group (e.g., per shank),
     then aggregate back into a single recording.
+    
+    Args:
+        recording: Recording to process
+        func: Function to apply
+        func_kwargs: Keyword arguments for the function
+        group_property: Property name for grouping (default: "group")
+        func_name: Name of the function for logging (default: "function")
     """
     func_kwargs = func_kwargs or {}
 
     # No grouping info -> just run normally
     if group_property not in recording.get_property_keys():
+        print(f"\t[custom] Applying {func_name} without grouping (no '{group_property}' property)")
         return func(recording, **func_kwargs)
 
     split = recording.split_by(group_property)
@@ -419,12 +471,17 @@ def apply_by_group(recording, func, func_kwargs, group_property="group"):
     # If split_by returns a dict with >1 group, process each recording separately
     # then aggregate them back together
     if isinstance(split, dict) and len(split) > 1:
+        print(f"\t[custom] Applying {func_name} with grouping: {len(split)} groups")
         processed_dict = {}
         keys = sorted(split.keys(), key=str)
         for key in keys:
+            num_channels = split[key].get_num_channels()
+            print(f"\t[custom]   Processing group {key}: {num_channels} channels")
             processed_dict[key] = func(split[key], **func_kwargs)
+        print(f"\t[custom] ✓ {func_name} completed for all groups, aggregating channels")
         return si.aggregate_channels([processed_dict[k] for k in keys])
 
+    print(f"\t[custom] Applying {func_name} without grouping (single group)")
     return func(recording, **func_kwargs)
 
 
@@ -585,10 +642,23 @@ if __name__ == "__main__":
             # ================================================================
             # NEW: Auto-detect multi-shank probe and set up grouping
             # ================================================================
+            print(f"\n\t[custom] === Multi-shank probe detection ===")
             is_multi_shank, num_shanks = detect_multi_shank_probe(recording, recording_dict, data_folder)
             if is_multi_shank:
+                print(f"\t[custom] Multi-shank probe detected: {num_shanks} shanks")
                 recording = setup_channel_grouping(recording, num_shanks)
+                # Verify grouping was set up
+                if "group" in recording.get_property_keys():
+                    unique_groups = np.unique(recording.get_property("group"))
+                    print(f"\t[custom] ✓ Channel grouping verified: {len(unique_groups)} groups found")
+                    for group_id in sorted(unique_groups):
+                        group_mask = recording.get_property("group") == group_id
+                        num_channels_in_group = np.sum(group_mask)
+                        print(f"\t[custom]   - Group {group_id}: {num_channels_in_group} channels")
                 preprocessing_notes += f"\n- Multi-shank probe detected ({num_shanks} shanks), grouping enabled"
+            else:
+                print(f"\t[custom] Single-shank probe detected (no grouping needed)")
+            print(f"\t[custom] ========================================\n")
             # ================================================================
 
             skip_processing = False
@@ -734,6 +804,7 @@ if __name__ == "__main__":
                         recording_rm_out = recording_filt_full
 
                     # Common reference denoising
+                    print(f"\n\t[custom] === Common Reference (CMR) preprocessing ===")
                     try:
                         # recording_processed_cmr = spre.common_reference(
                         #     recording_rm_out, **preprocessing_params["common_reference"]
@@ -743,9 +814,12 @@ if __name__ == "__main__":
                             spre.common_reference,
                             preprocessing_params["common_reference"],
                             group_property="group",
+                            func_name="common_reference (CMR)",
                         )
                         if recording_processed_cmr is None:
                             raise RuntimeError("common_reference returned None")
+                        print(f"\t[custom] ✓ CMR preprocessing completed successfully")
+                        print(f"\t[custom]   Output channels: {recording_processed_cmr.get_num_channels()}")
                     except Exception as e:
                         error_msg = f"Common reference preprocessing failed: {e}"
                         print(f"\t[custom] ERROR: {error_msg}")
@@ -769,7 +843,8 @@ if __name__ == "__main__":
 
                     recording_interp = spre.interpolate_bad_channels(recording_rm_out, bad_channel_ids)
                     
-                    # protection against short probes
+                    # Destripe (highpass spatial filter) - protection against short probes
+                    print(f"\n\t[custom] === Destripe (highpass spatial filter) preprocessing ===")
                     try:
                         # recording_hp_spatial = spre.highpass_spatial_filter(
                         #     recording_interp, **preprocessing_params["highpass_spatial_filter"]
@@ -779,11 +854,15 @@ if __name__ == "__main__":
                             spre.highpass_spatial_filter,
                             preprocessing_params["highpass_spatial_filter"],
                             group_property="group",
+                            func_name="highpass_spatial_filter (destripe)",
                         )
                         if recording_hp_spatial is None:
-                            print(f"\t[custom] Highpass spatial filter returned None")
+                            print(f"\t[custom] ⚠ Highpass spatial filter returned None")
+                        else:
+                            print(f"\t[custom] ✓ Destripe preprocessing completed successfully")
+                            print(f"\t[custom]   Output channels: {recording_hp_spatial.get_num_channels()}")
                     except Exception as e:
-                        print(f"\t[custom] Highpass spatial filter failed: {e}")
+                        print(f"\t[custom] ⚠ Highpass spatial filter failed: {e}")
                         recording_hp_spatial = None
                     
                     preprocessing_vizualization_data[recording_name]["timeseries"]["proc"] = dict(
@@ -796,20 +875,26 @@ if __name__ == "__main__":
                         )
 
                     denoising_strategy = preprocessing_params["denoising_strategy"]
+                    print(f"\n\t[custom] === Denoising strategy selection ===")
+                    print(f"\t[custom] Requested strategy: {denoising_strategy}")
                     if denoising_strategy == "cmr":
                         recording_processed = recording_processed_cmr
+                        print(f"\t[custom] ✓ Using CMR (common reference) denoising")
                     else:
                         # ================================================================
                         # FIX: Fall back to CMR if destripe (highpass_spatial) failed
                         # ================================================================
                         if recording_hp_spatial is not None:
                             recording_processed = recording_hp_spatial
+                            print(f"\t[custom] ✓ Using destripe (highpass spatial filter) denoising")
                         else:
-                            print(f"\t[custom] Destripe failed, falling back to CMR")
+                            print(f"\t[custom] ⚠ Destripe failed, falling back to CMR")
                             recording_processed = recording_processed_cmr
                             denoising_strategy = "cmr"
                             preprocessing_notes += "\n- Destripe failed, fell back to CMR."
                         # ================================================================
+                    print(f"\t[custom] Final denoising strategy: {denoising_strategy}")
+                    print(f"\t[custom] ===========================================\n")
 
                     # Safety check: ensure recording_processed is not None before removing channels
                     if recording_processed is None:
