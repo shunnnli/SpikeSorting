@@ -705,7 +705,9 @@ if __name__ == "__main__":
                     T_STOP = min(T_STOP, recording.get_duration())
                     print(f"\tOriginal recording duration: {recording.get_duration()} -- Clipping to {T_START}-{T_STOP} s")
                     start_frame = int(T_START * recording.get_sampling_frequency())
-                    end_frame = int(T_STOP * recording.get_sampling_frequency() + 1)
+                    end_frame = int(T_STOP * recording.get_sampling_frequency()) + 1
+                    total_samples = recording.get_num_samples()
+                    end_frame = min(end_frame, total_samples - 1)
                     recording = recording.frame_slice(start_frame=start_frame, end_frame=end_frame)
 
             print(f"\tDuration: {np.round(recording.get_total_duration(), 2)} s")
