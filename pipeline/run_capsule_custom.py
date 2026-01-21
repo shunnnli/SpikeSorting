@@ -50,6 +50,12 @@ filter_help = "Which filter to use. Can be 'highpass' or 'bandpass'"
 filter_group.add_argument("--filter-type", choices=["highpass", "bandpass"], help=filter_help)
 filter_group.add_argument("static_filter_type", nargs="?", default="highpass", help=filter_help)
 
+# Bandpass filter frequency arguments
+parser.add_argument("--bandpass-freq-min", type=float, default=None, 
+                    help="Lower frequency cutoff for bandpass filter (Hz). Only used when --filter-type bandpass")
+parser.add_argument("--bandpass-freq-max", type=float, default=None,
+                    help="Upper frequency cutoff for bandpass filter (Hz). Only used when --filter-type bandpass")
+
 remove_out_channels_group = parser.add_mutually_exclusive_group()
 remove_out_channels_help = "Whether to remove out channels"
 remove_out_channels_group.add_argument("--no-remove-out-channels", action="store_true", help=remove_out_channels_help)
@@ -528,6 +534,8 @@ if __name__ == "__main__":
 
     DENOISING_STRATEGY = args.denoising or args.static_denoising
     FILTER_TYPE = args.filter_type or args.static_filter_type
+    BANDPASS_FREQ_MIN = args.bandpass_freq_min
+    BANDPASS_FREQ_MAX = args.bandpass_freq_max
     REMOVE_OUT_CHANNELS = False if args.no_remove_out_channels else args.static_remove_out_channels == "true"
     REMOVE_BAD_CHANNELS = False if args.no_remove_bad_channels else args.static_remove_bad_channels == "true"
     MAX_BAD_CHANNEL_FRACTION = float(args.static_max_bad_channel_fraction or args.max_bad_channel_fraction)
@@ -734,7 +742,18 @@ if __name__ == "__main__":
                 )
                 preprocessing_params["filter_type"] = "highpass"
             elif FILTER_TYPE == "bandpass":
-                recording_filt_full = spre.bandpass_filter(recording_ps_full, **preprocessing_params["bandpass_filter"])
+                # Use command-line frequencies if provided, otherwise use params.json defaults
+                bandpass_kwargs = preprocessing_params["bandpass_filter"].copy()
+                if BANDPASS_FREQ_MIN is not None:
+                    bandpass_kwargs["freq_min"] = BANDPASS_FREQ_MIN
+                    print(f"\t[custom] Using bandpass freq_min from command line: {BANDPASS_FREQ_MIN} Hz")
+                if BANDPASS_FREQ_MAX is not None:
+                    bandpass_kwargs["freq_max"] = BANDPASS_FREQ_MAX
+                    print(f"\t[custom] Using bandpass freq_max from command line: {BANDPASS_FREQ_MAX} Hz")
+                if BANDPASS_FREQ_MIN is not None or BANDPASS_FREQ_MAX is not None:
+                    print(f"\t[custom] Bandpass filter range: {bandpass_kwargs.get('freq_min', 'default')}-{bandpass_kwargs.get('freq_max', 'default')} Hz")
+                
+                recording_filt_full = spre.bandpass_filter(recording_ps_full, **bandpass_kwargs)
                 preprocessing_vizualization_data[recording_name]["timeseries"]["full"].update(
                     dict(bandpass=recording_filt_full.to_dict(relative_to=data_folder, recursive=True))
                 )
