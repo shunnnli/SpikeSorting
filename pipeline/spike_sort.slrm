@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --nodes=1
-#SBATCH --mem=32G
+#SBATCH --mem=128G
 #SBATCH --partition=kempner
 #SBATCH --account=kempner_bsabatini_lab 
 #SBATCH --ntasks-per-node=1

@@ -385,7 +385,7 @@ if [ "${#job_ids[@]}" -gt 0 ]; then
         completed=0
         for jid in "${job_ids[@]}"; do
             # Query SLURM for this job's state (e.g., PD, R, CG, etc.).
-            state=$(squeue -h -j "$jid" -o "%T" 2>/dev/null | head -n 1)
+            state=$(squeue -h -j "$jid" -o "%t" 2>/dev/null | head -n 1)
 
             if [ -z "$state" ]; then
                 # Job no longer in the queue: treat as completed.
