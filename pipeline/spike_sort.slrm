@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --mem=128G
-#SBATCH --partition=kempner
+#SBATCH --partition=sapphire
 #SBATCH --account=kempner_bsabatini_lab 
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=2
