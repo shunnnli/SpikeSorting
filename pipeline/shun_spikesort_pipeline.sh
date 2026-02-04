@@ -266,8 +266,8 @@ pipeline_save_path="${pipeline_code_dir%/}/pipeline_saved"
 mkdir -p "$pipeline_save_path"
 
 # Limit concurrent spike-sort jobs to avoid Kempner GPU exhaustion (QOSMaxGRESPerUser).
-# Each parent job + its Nextflow child jobs all request GPUs. Lower = safer.
-MAX_CONCURRENT_JOBS=${MAX_CONCURRENT_JOBS:-3}
+# Each session uses ~2 GPUs (parent + 1 child). With kempner MaxTRESPU=16, 8 sessions fit.
+MAX_CONCURRENT_JOBS=${MAX_CONCURRENT_JOBS:-8}
 
 # Arrays to collect sessions to process (job_folder and script name)
 declare -a pending_job_folders=()
