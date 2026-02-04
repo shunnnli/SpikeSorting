@@ -399,11 +399,26 @@ if [ "$total_pending" -gt 0 ]; then
             echo "  Waiting for batch $batch_num to complete..."
             while true; do
                 all_done=true
+                running=0
+                pending=0
+                completed=0
+                other=0
                 for jid in "${job_ids[@]}"; do
                     state=$(squeue -h -j "$jid" -o "%t" 2>/dev/null | head -n 1)
-                    [ -n "$state" ] && all_done=false
+                    if [ -z "$state" ]; then
+                        completed=$((completed + 1))
+                        continue
+                    fi
+                    all_done=false
+                    case "$state" in
+                        PD) pending=$((pending + 1)) ;;
+                        R|CG) running=$((running + 1)) ;;
+                        *) other=$((other + 1)) ;;
+                    esac
                 done
                 if $all_done; then break; fi
+                echo "  Job status: total=${#job_ids[@]}, running=${running}, pending=${pending}, completed=${completed}, other=${other}"
+                echo "  Waiting for 60 seconds before next status check..."
                 sleep 60
             done
             echo "  Batch $batch_num complete."
