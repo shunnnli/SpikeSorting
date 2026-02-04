@@ -1,8 +1,11 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --mem=128G
-#SBATCH --partition=shared
-#SBATCH --account=kempner_bsabatini_lab 
+# Parent job: CPU-only (runs Nextflow). Uses sapphire - NOT Kempner.
+# Kempner account (kempner_bsabatini_lab) cannot be used here - it's only for Kempner partitions.
+# Use your normal FASRC account. Find valid accounts with: sacctmgr show associations user=$USER format=Account,Partition -p
+#SBATCH --partition=sapphire
+#SBATCH --account=bsabatini_lab 
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=2
 #SBATCH --time=24:00:00
