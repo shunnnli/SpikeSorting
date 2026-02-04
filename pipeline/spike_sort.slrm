@@ -5,7 +5,6 @@
 #SBATCH --account=kempner_bsabatini_lab 
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=2
-#SBATCH --gres=gpu:1
 #SBATCH --time=24:00:00
 #SBATCH --output=ephys-%N.%x.%j.out
 #SBATCH --error=ephys-%N.%x.%j.err
