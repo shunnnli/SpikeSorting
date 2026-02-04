@@ -265,7 +265,13 @@ echo ""
 pipeline_save_path="${pipeline_code_dir%/}/pipeline_saved"
 mkdir -p "$pipeline_save_path"
 
-# Array to track submitted SLURM job IDs
+# Limit concurrent spike-sort jobs to avoid Kempner GPU exhaustion (QOSMaxGRESPerUser).
+# Each parent job + its Nextflow child jobs all request GPUs. Lower = safer.
+MAX_CONCURRENT_JOBS=${MAX_CONCURRENT_JOBS:-3}
+
+# Arrays to collect sessions to process (job_folder and script name)
+declare -a pending_job_folders=()
+declare -a pending_job_scripts=()
 declare -a job_ids=()
 
 # Get all immediate subdirectories under DATA_PATH
@@ -274,7 +280,8 @@ dir_array_length=${#dir_data_array[@]}
 
 echo ""
 echo "Found $dir_array_length data directories"
-echo "Generating $dir_array_length pipelines"
+echo "Will process in batches of ${MAX_CONCURRENT_JOBS} (set MAX_CONCURRENT_JOBS to override)"
+echo ""
 
 for element in "${dir_data_array[@]}"
 do
@@ -345,141 +352,102 @@ do
         echo "  PREPROCESSING_ARGS: \"${base_preprocessing_args}\""
     fi
 
-    echo ""
-    echo "Submitting $job_slurm_script"
-    echo "  Data path: ${element}"
-    echo "  Results path: ${out_dir%/}/${folder_name}_output"
-
-    sbatch_output=$(sbatch "$job_slurm_script")
-    if [ $? -ne 0 ]; then
-        echo "❌ Failed to submit job: $job_slurm_script"
-        echo "sbatch output:"
-        echo "$sbatch_output"
-        exit 1
-    fi
-
-    echo "$sbatch_output"
-    job_id=$(echo "$sbatch_output" | awk '{print $4}')
-    if [[ -n "$job_id" ]]; then
-        job_ids+=("$job_id")
-    else
-        echo "⚠️  Could not parse job ID from sbatch output; post-processing wait may not track this job."
-    fi
+    echo "  Prepared $job_slurm_script (data: ${element})"
+    pending_job_folders+=("$job_folder")
+    pending_job_scripts+=("$job_slurm_script")
 
     # Return to the pipeline code directory before processing the next folder
     cd "$pipeline_code_dir"
 done
-echo "All spike-sorting jobs have been submitted."
+
+# Submit and run in batches to avoid GPU exhaustion
+total_pending=${#pending_job_folders[@]}
+if [ "$total_pending" -gt 0 ]; then
+    echo ""
+    echo "Submitting ${total_pending} spike-sorting jobs in batches of ${MAX_CONCURRENT_JOBS}..."
+    batch_num=0
+    offset=0
+    while [ "$offset" -lt "$total_pending" ]; do
+        batch_num=$((batch_num + 1))
+        end=$((offset + MAX_CONCURRENT_JOBS))
+        [ "$end" -gt "$total_pending" ] && end=$total_pending
+        batch_size=$((end - offset))
+
+        echo ""
+        echo "=== Batch $batch_num: submitting $batch_size job(s) ==="
+        job_ids=()
+        for ((i=offset; i<end; i++)); do
+            jf="${pending_job_folders[$i]}"
+            js="${pending_job_scripts[$i]}"
+            cd "$jf"
+            echo "  Submitting $js"
+            sbatch_output=$(sbatch "$js")
+            if [ $? -ne 0 ]; then
+                echo "❌ Failed to submit job: $js"
+                echo "$sbatch_output"
+                cd "$pipeline_code_dir"
+                exit 1
+            fi
+            echo "    $sbatch_output"
+            jid=$(echo "$sbatch_output" | awk '{print $4}')
+            [[ -n "$jid" ]] && job_ids+=("$jid")
+            cd "$pipeline_code_dir"
+        done
+
+        # Wait for this batch to complete
+        if [ "${#job_ids[@]}" -gt 0 ]; then
+            echo "  Waiting for batch $batch_num to complete..."
+            while true; do
+                all_done=true
+                for jid in "${job_ids[@]}"; do
+                    state=$(squeue -h -j "$jid" -o "%t" 2>/dev/null | head -n 1)
+                    [ -n "$state" ] && all_done=false
+                done
+                if $all_done; then break; fi
+                sleep 60
+            done
+            echo "  Batch $batch_num complete."
+        fi
+        offset=$end
+    done
+    echo ""
+    echo "All spike-sorting jobs have been submitted and completed."
+else
+    echo "No new spike-sorting jobs to submit (all sessions already have output or were skipped)."
+fi
 
 # Track overall success: start with true, set to false if any job fails
 overall_success=true
 
-# If we captured any job IDs, wait for them to complete before running post-processing
-if [ "${#job_ids[@]}" -gt 0 ]; then
-    echo "Waiting for ${#job_ids[@]} spike-sorting jobs to finish before running post-processing..."
-    while true; do
-        all_done=true
-        running=0
-        pending=0
-        other=0
-        completed=0
-        for jid in "${job_ids[@]}"; do
-            # Query SLURM for this job's state (e.g., PD, R, CG, etc.).
-            state=$(squeue -h -j "$jid" -o "%t" 2>/dev/null | head -n 1)
+# Jobs are waited on per-batch above; proceed to verification and post-processing.
+echo ""
+echo "Verifying spike-sorting outputs..."
+missing_outputs=0
+for element in "${dir_data_array[@]}"; do
+    folder_name=$(basename "$element")
+    results_folder="${out_dir%/}/${folder_name}_output"
 
-            if [ -z "$state" ]; then
-                # Job no longer in the queue: treat as completed.
-                completed=$((completed + 1))
-                continue
-            fi
-
-            all_done=false
-            case "$state" in
-                PD) pending=$((pending + 1)) ;;
-                R|CG) running=$((running + 1)) ;;
-                *) other=$((other + 1)) ;;
-            esac
-        done
-
-        if $all_done; then
-            echo "All spike-sorting jobs appear to have finished."
-            break
-        fi
-
-        echo "Job status: total=${#job_ids[@]}, running=${running}, pending=${pending}, completed=${completed}, other=${other}"
-        echo "Waiting for 60 seconds before next status check..."
-        sleep 60
-    done
-    
-    # # Check if all jobs actually succeeded (not just finished)
-    # echo ""
-    # echo "Checking spike-sorting job exit statuses..."
-    # failed_jobs=0
-    # for jid in "${job_ids[@]}"; do
-    #     # Get the job exit code using sacct
-    #     exit_code=$(sacct -j "$jid" -n --format=ExitCode --noheader 2>/dev/null | head -n 1 | awk -F: '{print $1}')
-        
-    #     if [ -n "$exit_code" ] && [ "$exit_code" != "0" ] && [ "$exit_code" != "0:0" ]; then
-    #         echo "❌ Job $jid failed with exit code: $exit_code"
-    #         failed_jobs=$((failed_jobs + 1))
-    #         overall_success=false
-    #     elif [ -z "$exit_code" ]; then
-    #         # Job info not available in sacct yet, try to verify by checking output
-    #         echo "⚠️  Could not determine exit code for job $jid (may still be finalizing)"
-    #     else
-    #         echo "✅ Job $jid completed successfully (exit code: $exit_code)"
-    #     fi
-    # done
-    # if [ "$failed_jobs" -gt 0 ]; then
-    #     echo ""
-    #     echo "⚠️  WARNING: $failed_jobs out of ${#job_ids[@]} spike-sorting jobs failed."
-    #     echo "   The pipeline will continue but files will NOT be moved from todo folder."
-    # fi
-    
-    # Verify expected output directories exist for all sessions
-    echo ""
-    echo "Verifying spike-sorting outputs..."
-    missing_outputs=0
-    for element in "${dir_data_array[@]}"; do
-        folder_name=$(basename "$element")
-        results_folder="${out_dir%/}/${folder_name}_output"
-        
-        # Check if spikesorted directory exists (main indicator of success)
-        if [ ! -d "${results_folder}/spikesorted" ]; then
-            echo "⚠️  Missing spikesorted directory for ${folder_name}: ${results_folder}/spikesorted"
-            missing_outputs=$((missing_outputs + 1))
-            overall_success=false
-        else
-            echo "✅ Found spikesorted directory for ${folder_name}"
-        fi
-        
-        # Also check for preprocessed directory (required for post-processing)
-        if [ ! -d "${results_folder}/preprocessed" ]; then
-            echo "⚠️  Missing preprocessed directory for ${folder_name}: ${results_folder}/preprocessed"
-            missing_outputs=$((missing_outputs + 1))
-            overall_success=false
-        fi
-    done
-    
-    if [ "$missing_outputs" -gt 0 ]; then
-        echo ""
-        echo "⚠️  WARNING: $missing_outputs session(s) missing expected output directories."
-        echo "   The pipeline will continue but files will NOT be moved from todo folder."
+    # Check if spikesorted directory exists (main indicator of success)
+    if [ ! -d "${results_folder}/spikesorted" ]; then
+        echo "⚠️  Missing spikesorted directory for ${folder_name}: ${results_folder}/spikesorted"
+        missing_outputs=$((missing_outputs + 1))
+        overall_success=false
+    else
+        echo "✅ Found spikesorted directory for ${folder_name}"
     fi
-else
-    echo "No job IDs were recorded; skipping wait step and running post-processing immediately."
-    # If no jobs were submitted, we should still verify outputs exist
+
+    # Also check for preprocessed directory (required for post-processing)
+    if [ ! -d "${results_folder}/preprocessed" ]; then
+        echo "⚠️  Missing preprocessed directory for ${folder_name}: ${results_folder}/preprocessed"
+        missing_outputs=$((missing_outputs + 1))
+        overall_success=false
+    fi
+done
+
+if [ "$missing_outputs" -gt 0 ]; then
     echo ""
-    echo "Verifying spike-sorting outputs..."
-    for element in "${dir_data_array[@]}"; do
-        folder_name=$(basename "$element")
-        results_folder="${out_dir%/}/${folder_name}_output"
-        
-        if [ ! -d "${results_folder}/spikesorted" ]; then
-            echo "⚠️  Missing spikesorted directory for ${folder_name}: ${results_folder}/spikesorted"
-            overall_success=false
-        fi
-    done
+    echo "⚠️  WARNING: $missing_outputs session(s) missing expected output directories."
+    echo "   The pipeline will continue but files will NOT be moved from todo folder."
 fi
 
 
