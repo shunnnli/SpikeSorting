@@ -8,11 +8,18 @@
 # # reattach later: tmux attach -t spikesort
 # ================================
 
-# Input argument - Slurm job description file
+# Input arguments
+#   $1: Slurm job description file
+#   $2: Optional user profile name (e.g., your cluster username)
 Slurm_file=$1
+user_profile=$2
 
 if [ -z "$Slurm_file" ]; then
-  echo "Usage: $0 <slurm_file>"
+  echo "Usage: $0 <slurm_file> [user_profile]"
+  echo "  <slurm_file>   : Path to the base Slurm template (e.g., pipeline/spike_sort.slrm)"
+  echo "  [user_profile] : Optional user name used to derive per-user paths"
+  echo "                   If provided, paths will be set to:"
+  echo "                     /n/netscratch/bsabatini_lab/Lab/<user_profile>/spikesorting/..."
   exit 1
 fi
 
@@ -25,7 +32,7 @@ Slurm_file_path=$(realpath "$Slurm_file")
 
 echo "Generating job submission files from the Slurm file: $Slurm_file_path"
 
-# Extract relevant paths from the Slurm file
+# Extract relevant paths from the Slurm file (defaults)
 top_dir=$(grep "^DATA_PATH" "$Slurm_file_path" | sed "s/DATA_PATH=//g" | tr -d '"')
 work_dir=$(grep "^WORK_DIR" "$Slurm_file_path" | sed "s/WORK_DIR=//g" | tr -d '"')
 out_dir=$(grep "^RESULTS_PATH" "$Slurm_file_path" | sed "s/RESULTS_PATH=//g" | tr -d '"')
@@ -35,6 +42,51 @@ backup_dir=$(grep "^BACKUP_PATH" "$Slurm_file_path" | sed "s/BACKUP_PATH=//g" | 
 pipeline_path=$(grep "^PIPELINE_PATH" "$Slurm_file_path" | sed "s/PIPELINE_PATH=//g" | tr -d '"')
 # Resolve relative PIPELINE_PATH to an absolute path (based on current directory)
 pipeline_code_dir=$(realpath "$pipeline_path")
+
+# Optional user profiles config
+user_profiles_config="${pipeline_code_dir}/user_profiles.conf"
+
+# If a user profile was provided, override the default paths.
+# The lookup order is:
+#   1) If user_profiles.conf exists and contains "<profile>=/some/base/path",
+#      use that as the base path.
+#   2) Otherwise, fall back to:
+#      /n/netscratch/bsabatini_lab/Lab/<profile>/spikesorting
+if [ -n "$user_profile" ]; then
+    echo ""
+    echo "Using user profile: $user_profile"
+    user_base=""
+
+    if [ -f "$user_profiles_config" ]; then
+        profile_base=$(awk -F= -v p="$user_profile" '$1==p {print $2}' "$user_profiles_config" | tail -n 1)
+        if [ -n "$profile_base" ]; then
+            user_base="$profile_base"
+            echo "  Loaded base path from user_profiles.conf: $user_base"
+        else
+            echo "  Profile '$user_profile' not found in user_profiles.conf; using default pattern."
+        fi
+    else
+        echo "  No user_profiles.conf found at: $user_profiles_config"
+        echo "  Using default pattern for user base."
+    fi
+
+    if [ -z "$user_base" ]; then
+        user_base="/n/netscratch/bsabatini_lab/Lab/${user_profile}/spikesorting"
+    fi
+
+    # Normalize: ensure no trailing slash
+    user_base="${user_base%/}"
+
+    top_dir="${user_base}/aind_input/todo/"
+    work_dir="${user_base}/work_dir/"
+    out_dir="${user_base}/aind_output_scratch/"
+    backup_dir="${user_base}/aind_input/"
+    echo "  DATA_PATH    -> $top_dir"
+    echo "  WORK_DIR     -> $work_dir"
+    echo "  RESULTS_PATH -> $out_dir"
+    echo "  BACKUP_PATH  -> $backup_dir"
+    echo ""
+fi
 
 # Load session-specific EXCLUDE_LAST_SEC and EXCLUDE_FIRST_SEC values from config file
 exclude_config_file="${pipeline_code_dir}/exclude_seconds.conf"
@@ -333,13 +385,14 @@ do
     sed "s|^RESULTS_PATH=.*|$new_results_path|g" 1.tmp.slrm > 2.tmp.slrm
     sed "s|^DATA_PATH=.*|$new_data_path|g" 2.tmp.slrm > 3.tmp.slrm
     sed "s|^PIPELINE_PATH=.*|$new_pipeline_path|g" 3.tmp.slrm > 4.tmp.slrm
+    sed "s|^WORK_DIR=.*|WORK_DIR=\"${work_dir}\"|g" 4.tmp.slrm > 5.tmp.slrm
     # Update EXCLUDE_LAST_SEC with session-specific value
-    sed "s|^EXCLUDE_LAST_SEC=.*|EXCLUDE_LAST_SEC=\"${session_exclude_last_sec}\"|g" 4.tmp.slrm > 5.tmp.slrm
+    sed "s|^EXCLUDE_LAST_SEC=.*|EXCLUDE_LAST_SEC=\"${session_exclude_last_sec}\"|g" 5.tmp.slrm > 6.tmp.slrm
     # Update EXCLUDE_FIRST_SEC with session-specific value
-    sed "s|^EXCLUDE_FIRST_SEC=.*|EXCLUDE_FIRST_SEC=\"${session_exclude_first_sec}\"|g" 5.tmp.slrm > 6.tmp.slrm
+    sed "s|^EXCLUDE_FIRST_SEC=.*|EXCLUDE_FIRST_SEC=\"${session_exclude_first_sec}\"|g" 6.tmp.slrm > 7.tmp.slrm
     # Update BAD_CHANNELS with session-specific value (empty string if none)
-    sed "s|^BAD_CHANNELS=.*|BAD_CHANNELS=\"${session_bad_channels}\"|g" 6.tmp.slrm > "$job_slurm_script"
-    rm 1.tmp.slrm 2.tmp.slrm 3.tmp.slrm 4.tmp.slrm 5.tmp.slrm 6.tmp.slrm
+    sed "s|^BAD_CHANNELS=.*|BAD_CHANNELS=\"${session_bad_channels}\"|g" 7.tmp.slrm > "$job_slurm_script"
+    rm 1.tmp.slrm 2.tmp.slrm 3.tmp.slrm 4.tmp.slrm 5.tmp.slrm 6.tmp.slrm 7.tmp.slrm
     
     # Extract base PREPROCESSING_ARGS from the generated script (before bad channels are appended)
     base_preprocessing_args=$(grep "^PREPROCESSING_ARGS=" "$job_slurm_script" | head -n 1 | sed 's/PREPROCESSING_ARGS=//' | tr -d '"')
