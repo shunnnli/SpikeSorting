@@ -27,8 +27,9 @@
 set -euo pipefail
 
 ARG1="${1:-}"
+USER_PROFILE="${2:-}"
 
-# Default locations (override via slurm file or output dir argument)
+# Default locations (override via slurm file, output dir argument, or user profile)
 DEFAULT_OUT_DIR="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_output_scratch"
 DOWNLOAD_BASE="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_output_fordownload"
 
@@ -47,6 +48,37 @@ if [ -n "$ARG1" ]; then
         # Assume it's an output base dir
         OUT_DIR="$ARG1"
     fi
+fi
+
+# If a user profile is provided, override OUT_DIR and DOWNLOAD_BASE using pipeline/user_profiles.conf
+if [ -n "$USER_PROFILE" ]; then
+    SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    PIPELINE_DIR="$SCRIPT_DIR"
+    USER_PROFILES_CONFIG="${PIPELINE_DIR}/user_profiles.conf"
+
+    echo ""
+    echo "Using user profile: $USER_PROFILE"
+    user_base=""
+    if [ -f "$USER_PROFILES_CONFIG" ]; then
+        profile_base=$(awk -F= -v p="$USER_PROFILE" '$1==p {print $2}' "$USER_PROFILES_CONFIG" | tail -n 1)
+        if [ -n "$profile_base" ]; then
+            user_base="$profile_base"
+            echo "  Loaded base path from user_profiles.conf: $user_base"
+        else
+            echo "  Profile '$USER_PROFILE' not found in user_profiles.conf; using default pattern."
+        fi
+    else
+        echo "  No user_profiles.conf found at: $USER_PROFILES_CONFIG"
+        echo "  Using default pattern for user base."
+    fi
+
+    if [ -z "$user_base" ]; then
+        user_base="/n/netscratch/bsabatini_lab/Lab/${USER_PROFILE}/spikesorting"
+    fi
+
+    user_base="${user_base%/}"
+    OUT_DIR="${user_base}/aind_output_scratch"
+    DOWNLOAD_BASE="${user_base}/aind_output_fordownload"
 fi
 
 OUT_DIR="${OUT_DIR%/}"

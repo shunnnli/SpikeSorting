@@ -9,6 +9,7 @@ import json
 import time
 import argparse
 import platform
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import spikeinterface as si
@@ -31,19 +32,61 @@ parser.add_argument(
     default=False,
     help="Skip sessions that already have an AIND export (analysis_meta.json exists)."
 )
+parser.add_argument(
+    "--user-profile",
+    type=str,
+    default=None,
+    help="Optional user profile name; when set (and AIND_* env vars are not already set), "
+    "derive AIND_INPUT_BASE_DIR and AIND_OUTPUT_BASE_DIR from pipeline/user_profiles.conf or "
+    "/n/netscratch/bsabatini_lab/Lab/<user>/spikesorting.",
+)
 args = parser.parse_args()
 
 # -------- Base folder paths --------
 # Allow overriding the default locations via environment variables so the
 # pipeline script can drive which directory of recording sessions to process.
-input_base_dir  = os.environ.get(
-    'AIND_INPUT_BASE_DIR',
-    '/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_input/todo'
-)
-output_base_dir = os.environ.get(
-    'AIND_OUTPUT_BASE_DIR',
-    '/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_output_scratch'
-)
+
+
+def _resolve_user_base(user_profile: str) -> str:
+    """
+    Resolve a base spikesorting directory for a given user profile.
+    Lookup order:
+      1) postprocess/../pipeline/user_profiles.conf (profile=base_path)
+      2) Fallback to /n/netscratch/bsabatini_lab/Lab/<profile>/spikesorting
+    """
+    repo_root = Path(__file__).resolve().parent.parent
+    config_path = repo_root / "pipeline" / "user_profiles.conf"
+    base = ""
+    if config_path.is_file():
+        try:
+            with config_path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    name, value = line.split("=", 1)
+                    if name.strip() == user_profile:
+                        base = value.strip()
+        except Exception:
+            base = ""
+    if not base:
+        base = f"/n/netscratch/bsabatini_lab/Lab/{user_profile}/spikesorting"
+    return base.rstrip("/")
+
+
+if args.user_profile and "AIND_INPUT_BASE_DIR" not in os.environ and "AIND_OUTPUT_BASE_DIR" not in os.environ:
+    user_base = _resolve_user_base(args.user_profile)
+    input_base_dir = os.path.join(user_base, "aind_input", "todo")
+    output_base_dir = os.path.join(user_base, "aind_output_scratch")
+else:
+    input_base_dir = os.environ.get(
+        "AIND_INPUT_BASE_DIR",
+        "/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_input/todo",
+    )
+    output_base_dir = os.environ.get(
+        "AIND_OUTPUT_BASE_DIR",
+        "/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_output_scratch",
+    )
 skip_existing = args.skip_existing
 
 # -------- Discover raw-recording subfolders and derive session names --------

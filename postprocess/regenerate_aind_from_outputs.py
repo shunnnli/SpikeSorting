@@ -5,6 +5,7 @@ import os
 import platform
 import shutil
 import time
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -449,6 +450,33 @@ def regenerate_aind_for_session(base_folder: str, session_name: str, force: bool
     return aind_folder
 
 
+def _resolve_user_base(user_profile: str) -> str:
+    """
+    Resolve a base spikesorting directory for a given user profile.
+    Lookup order:
+      1) postprocess/../pipeline/user_profiles.conf (profile=base_path)
+      2) Fallback to /n/netscratch/bsabatini_lab/Lab/<profile>/spikesorting
+    """
+    repo_root = Path(__file__).resolve().parent.parent
+    config_path = repo_root / "pipeline" / "user_profiles.conf"
+    base = ""
+    if config_path.is_file():
+        try:
+            with config_path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    name, value = line.split("=", 1)
+                    if name.strip() == user_profile:
+                        base = value.strip()
+        except Exception:
+            base = ""
+    if not base:
+        base = f"/n/netscratch/bsabatini_lab/Lab/{user_profile}/spikesorting"
+    return base.rstrip("/")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Regenerate AIND_* folders from existing per-session *_output folders."
@@ -464,6 +492,13 @@ def main():
         help="Destination directory to copy AIND_* folders for download.",
     )
     parser.add_argument(
+        "--user-profile",
+        type=str,
+        default=None,
+        help="Optional user profile name; when set, overrides output/download base dirs "
+        "using pipeline/user_profiles.conf or /n/netscratch/bsabatini_lab/Lab/<user>/spikesorting.",
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="If set, delete and recreate existing AIND_* folders (both in output and download dirs).",
@@ -475,8 +510,14 @@ def main():
     )
     args = parser.parse_args()
 
-    output_base_dir = args.output_base_dir.rstrip("/")
-    download_base_dir = args.download_base_dir.rstrip("/")
+    # If a user profile is provided, derive paths from user_profiles.conf instead of static defaults.
+    if args.user_profile:
+        user_base = _resolve_user_base(args.user_profile)
+        output_base_dir = os.path.join(user_base, "aind_output_scratch")
+        download_base_dir = os.path.join(user_base, "aind_output_fordownload")
+    else:
+        output_base_dir = args.output_base_dir.rstrip("/")
+        download_base_dir = args.download_base_dir.rstrip("/")
 
     print("SpikeInterface version:", getattr(si, "__version__", "unknown"))
     print("Output base dir   :", output_base_dir)
