@@ -622,7 +622,17 @@ fi
 # Copy per-session output folders to download location
 # ================================
 echo ""
-copy_dest_base="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_output_fordownload"
+
+# Determine where to place the download copies.
+# If a user profile/base was used, put downloads under that base.
+# Otherwise, derive a sane default from RESULTS_PATH (out_dir).
+if [ -n "${user_base:-}" ]; then
+    copy_dest_base="${user_base}/aind_output_fordownload"
+else
+    out_parent_dir=$(dirname "${out_dir%/}")
+    copy_dest_base="${out_parent_dir}/aind_output_fordownload"
+fi
+
 echo "Copying session output folders to: $copy_dest_base"
 mkdir -p "$copy_dest_base"
 
