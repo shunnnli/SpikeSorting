@@ -86,6 +86,17 @@ if [ -n "$user_profile" ]; then
     echo "  RESULTS_PATH -> $out_dir"
     echo "  BACKUP_PATH  -> $backup_dir"
     echo ""
+else
+    # No explicit user profile: treat 'shunnnli' as the default logical profile
+    # for purposes of locating job folders and download paths, using
+    # user_profiles.conf as the single source of truth when available.
+    DEFAULT_PROFILE="shunnnli"
+    if [ -f "$user_profiles_config" ]; then
+        profile_base=$(awk -F= -v p="$DEFAULT_PROFILE" '$1==p {print $2}' "$user_profiles_config" | tail -n 1)
+        if [ -n "$profile_base" ]; then
+            user_base="${profile_base%/}"
+        fi
+    fi
 fi
 
 # Load session-specific EXCLUDE_LAST_SEC and EXCLUDE_FIRST_SEC values from config file
@@ -314,7 +325,14 @@ echo "=========================================="
 echo ""
 
 # Define where to save the pipeline job folders
-pipeline_save_path="${pipeline_code_dir%/}/pipeline_saved"
+# If a user profile/base is active, put job folders under that base so they are
+# kept with that user's spikesorting tree. Otherwise, default to the pipeline
+# code directory.
+if [ -n "${user_base:-}" ]; then
+    pipeline_save_path="${user_base%/}/pipeline"
+else
+    pipeline_save_path="${pipeline_code_dir%/}/pipeline_saved"
+fi
 mkdir -p "$pipeline_save_path"
 
 # Limit concurrent spike-sort jobs to avoid Kempner GPU exhaustion (QOSMaxGRESPerUser).
@@ -678,6 +696,11 @@ else
     echo "   - Check job exit codes and output directories above"
     echo "   - Verify that preprocessing completed successfully"
     echo "   - Ensure all expected output directories exist"
+    echo ""
+    echo "Where to look for detailed error logs:"
+    echo "   - Slurm job logs: ${pipeline_save_path}/pipeline_<SESSION_NAME>/ephys-*.out and ephys-*.err"
+    echo "   - Per-session Nextflow log: ${out_dir%/}/<SESSION_NAME>_output/nextflow.log"
+    echo "   Replace <SESSION_NAME> with the folder name reported above."
     echo ""
     echo "Once issues are resolved, you can rerun the pipeline or manually move files."
     exit 1
