@@ -686,6 +686,17 @@ if [ "$overall_success" = true ]; then
     else
         echo "⚠️  No files to move (todo folder is empty or doesn't exist)."
     fi
+
+    # Optionally clean up Nextflow work directory for this user/profile now that
+    # all sessions have completed successfully.
+    if [ -n "${work_dir:-}" ] && [ -d "$work_dir" ]; then
+        echo ""
+        echo "Cleaning up Nextflow work directory to free space:"
+        echo "  Deleting contents of: $work_dir"
+        # Remove all contents but keep the directory itself.
+        rm -rf "${work_dir}/"* 2>/dev/null || true
+        echo "✅ Finished cleaning work directory."
+    fi
 else
     echo "❌ Spike-sorting or post-processing encountered errors."
     echo "   NOT moving recording files from todo folder to parent folder."
