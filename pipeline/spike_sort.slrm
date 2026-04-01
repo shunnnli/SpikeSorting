@@ -19,6 +19,18 @@
 # # reattach later: tmux attach -t spikesort
 # ================================
 
+# ================================
+# Example usage:
+# pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm shunnnli
+# pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm emily
+# pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm emily_noband
+
+# With specific preprocessing knob:
+# pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm shunnnli BANDPASS_FILTER=false
+# pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm emily BANDPASS_FREQ_MAX=10000
+# pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm emily BANDPASS_FREQ_MAX=10000 DENOISING_METHOD=cmr
+# ================================
+
 DATA_PATH="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/aind_input/todo/"
 WORK_DIR="/n/netscratch/bsabatini_lab/Lab/shunnnli/spikesorting/work_dir/"
 PIPELINE_PATH="pipeline/"

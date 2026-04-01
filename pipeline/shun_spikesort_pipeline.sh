@@ -9,17 +9,37 @@
 # ================================
 
 # Input arguments
-#   $1: Slurm job description file
-#   $2: Optional user profile name (e.g., your cluster username)
+#   $1        : Slurm job description file
+#   $2        : Optional user profile name (from pipeline/user_profiles.conf)
+#   $3 ... $N : Optional knob overrides as KEY=VALUE pairs
+#               e.g.  BANDPASS_FILTER=false  BANDPASS_FREQ_MAX=6000
+#
+# Examples:
+#   pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm
+#   pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm emily
+#   pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm shunnnli BANDPASS_FILTER=false
+#   pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm emily BANDPASS_FREQ_MAX=10000
 Slurm_file=$1
 user_profile=$2
+shift 2 2>/dev/null || shift $# 2>/dev/null || true
+
+# Parse remaining positional args as KEY=VALUE knob overrides (highest priority)
+declare -A cli_knob_overrides
+for arg in "$@"; do
+    if [[ "$arg" == *=* ]]; then
+        cli_key="${arg%%=*}"
+        cli_val="${arg#*=}"
+        cli_knob_overrides[$cli_key]="$cli_val"
+    fi
+done
 
 if [ -z "$Slurm_file" ]; then
-  echo "Usage: $0 <slurm_file> [user_profile]"
+  echo "Usage: $0 <slurm_file> [user_profile] [KEY=VALUE ...]"
   echo "  <slurm_file>   : Path to the base Slurm template (e.g., pipeline/spike_sort.slrm)"
-  echo "  [user_profile] : Optional user name used to derive per-user paths"
-  echo "                   If provided, paths will be set to:"
-  echo "                     /n/netscratch/bsabatini_lab/Lab/<user_profile>/spikesorting/..."
+  echo "  [user_profile] : Optional profile from pipeline/user_profiles.conf"
+  echo "  [KEY=VALUE]    : Optional knob overrides (space-separated, highest priority)"
+  echo "                   Available knobs: DENOISING_METHOD REMOVE_BAD_CHANNELS"
+  echo "                                    BANDPASS_FILTER BANDPASS_FREQ_MIN BANDPASS_FREQ_MAX"
   exit 1
 fi
 
@@ -86,8 +106,11 @@ if [ -n "$user_profile" ]; then
     echo "  RESULTS_PATH -> $out_dir"
     echo "  BACKUP_PATH  -> $backup_dir"
 
-    # Look up per-user knob overrides from user_profiles.conf
-    # Format in conf: <profile>.<KNOB>=<value>
+    # Look up per-user knob overrides.
+    # Priority (highest wins):
+    #   1. KEY=VALUE positional args on the command line
+    #   2. <profile>.<KNOB> in user_profiles.conf
+    #   3. Default value in spike_sort.slrm
     declare -A user_knob_overrides
     knob_names=(DENOISING_METHOD REMOVE_BAD_CHANNELS BANDPASS_FILTER BANDPASS_FREQ_MIN BANDPASS_FREQ_MAX)
     if [ -f "$user_profiles_config" ]; then
@@ -95,10 +118,15 @@ if [ -n "$user_profile" ]; then
             val=$(awk -F= -v key="${user_profile}.${knob}" '$1==key {print $2}' "$user_profiles_config" | tail -n 1)
             if [ -n "$val" ]; then
                 user_knob_overrides[$knob]="$val"
-                echo "  $knob -> $val (override)"
+                echo "  $knob -> $val (from user_profiles.conf)"
             fi
         done
     fi
+    # Apply command-line KEY=VALUE overrides on top (highest priority)
+    for knob in "${!cli_knob_overrides[@]}"; do
+        user_knob_overrides[$knob]="${cli_knob_overrides[$knob]}"
+        echo "  $knob -> ${cli_knob_overrides[$knob]} (command-line override)"
+    done
     echo ""
 else
     # No explicit user profile: treat 'shunnnli' as the default logical profile
@@ -111,8 +139,13 @@ else
             user_base="${profile_base%/}"
         fi
     fi
-    # No knob overrides for the default profile
+    # No conf overrides for the default profile, but apply any command-line KEY=VALUE overrides
     declare -A user_knob_overrides
+    knob_names=(DENOISING_METHOD REMOVE_BAD_CHANNELS BANDPASS_FILTER BANDPASS_FREQ_MIN BANDPASS_FREQ_MAX)
+    for knob in "${!cli_knob_overrides[@]}"; do
+        user_knob_overrides[$knob]="${cli_knob_overrides[$knob]}"
+        echo "  $knob -> ${cli_knob_overrides[$knob]} (command-line override)"
+    done
 fi
 
 # Load session-specific EXCLUDE_LAST_SEC and EXCLUDE_FIRST_SEC values from config file
