@@ -107,16 +107,35 @@ BAD_CHANNELS=""
 export BAD_CHANNELS
 
 # ================================
-# Build preprocessing args
+# Preprocessing knobs
 # ================================
-# Build preprocessing args
-# PREPROCESSING_ARGS="--denoising cmr --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP}"
-# PREPROCESSING_ARGS="--denoising cmr --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP} --no-remove-bad-channels"
-# PREPROCESSING_ARGS="--denoising destripe --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP}"
-# PREPROCESSING_ARGS="--denoising destripe --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP} --no-remove-bad-channels"
+# Individual parameters that control preprocessing behaviour.
+# Each knob can be overridden per user in pipeline/user_profiles.conf
+# using the format:  <profile>.<KNOB>=<value>
+#
+# DENOISING_METHOD  : cmr | destripe
+# REMOVE_BAD_CHANNELS : true | false
+# BANDPASS_FILTER   : true | false  (false = skip bandpass entirely)
+# BANDPASS_FREQ_MIN : Hz  (only used when BANDPASS_FILTER=true)
+# BANDPASS_FREQ_MAX : Hz  (only used when BANDPASS_FILTER=true)
+DENOISING_METHOD="destripe"
+REMOVE_BAD_CHANNELS="false"
+BANDPASS_FILTER="true"
+BANDPASS_FREQ_MIN="300"
+BANDPASS_FREQ_MAX="10000"
 
-# With bandpass filter option
-PREPROCESSING_ARGS="--denoising destripe --filter-type bandpass --bandpass-freq-min 300 --bandpass-freq-max 10000 --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP} --no-remove-bad-channels"
+# ================================
+# Build preprocessing args from knobs
+# ================================
+PREPROCESSING_ARGS="--denoising ${DENOISING_METHOD} --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP}"
+
+if [ "$BANDPASS_FILTER" = "true" ]; then
+    PREPROCESSING_ARGS="${PREPROCESSING_ARGS} --filter-type bandpass --bandpass-freq-min ${BANDPASS_FREQ_MIN} --bandpass-freq-max ${BANDPASS_FREQ_MAX}"
+fi
+
+if [ "$REMOVE_BAD_CHANNELS" = "false" ]; then
+    PREPROCESSING_ARGS="${PREPROCESSING_ARGS} --no-remove-bad-channels"
+fi
 
 # Append bad channels if provided (only when using custom preprocessing)
 if [ -n "${BAD_CHANNELS}" ]; then

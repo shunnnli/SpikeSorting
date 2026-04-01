@@ -85,6 +85,20 @@ if [ -n "$user_profile" ]; then
     echo "  WORK_DIR     -> $work_dir"
     echo "  RESULTS_PATH -> $out_dir"
     echo "  BACKUP_PATH  -> $backup_dir"
+
+    # Look up per-user knob overrides from user_profiles.conf
+    # Format in conf: <profile>.<KNOB>=<value>
+    declare -A user_knob_overrides
+    knob_names=(DENOISING_METHOD REMOVE_BAD_CHANNELS BANDPASS_FILTER BANDPASS_FREQ_MIN BANDPASS_FREQ_MAX)
+    if [ -f "$user_profiles_config" ]; then
+        for knob in "${knob_names[@]}"; do
+            val=$(awk -F= -v key="${user_profile}.${knob}" '$1==key {print $2}' "$user_profiles_config" | tail -n 1)
+            if [ -n "$val" ]; then
+                user_knob_overrides[$knob]="$val"
+                echo "  $knob -> $val (override)"
+            fi
+        done
+    fi
     echo ""
 else
     # No explicit user profile: treat 'shunnnli' as the default logical profile
@@ -97,6 +111,8 @@ else
             user_base="${profile_base%/}"
         fi
     fi
+    # No knob overrides for the default profile
+    declare -A user_knob_overrides
 fi
 
 # Load session-specific EXCLUDE_LAST_SEC and EXCLUDE_FIRST_SEC values from config file
@@ -409,8 +425,15 @@ do
     # Update EXCLUDE_FIRST_SEC with session-specific value
     sed "s|^EXCLUDE_FIRST_SEC=.*|EXCLUDE_FIRST_SEC=\"${session_exclude_first_sec}\"|g" 6.tmp.slrm > 7.tmp.slrm
     # Update BAD_CHANNELS with session-specific value (empty string if none)
-    sed "s|^BAD_CHANNELS=.*|BAD_CHANNELS=\"${session_bad_channels}\"|g" 7.tmp.slrm > "$job_slurm_script"
-    rm 1.tmp.slrm 2.tmp.slrm 3.tmp.slrm 4.tmp.slrm 5.tmp.slrm 6.tmp.slrm 7.tmp.slrm
+    sed "s|^BAD_CHANNELS=.*|BAD_CHANNELS=\"${session_bad_channels}\"|g" 7.tmp.slrm > 8.tmp.slrm
+    # Inject per-user knob overrides (e.g. BANDPASS_FREQ_MAX, BANDPASS_FILTER, etc.)
+    cp 8.tmp.slrm 9.tmp.slrm
+    for knob in "${!user_knob_overrides[@]}"; do
+        sed "s|^${knob}=.*|${knob}=\"${user_knob_overrides[$knob]}\"|g" 9.tmp.slrm > 10.tmp.slrm
+        mv 10.tmp.slrm 9.tmp.slrm
+    done
+    mv 9.tmp.slrm "$job_slurm_script"
+    rm -f 1.tmp.slrm 2.tmp.slrm 3.tmp.slrm 4.tmp.slrm 5.tmp.slrm 6.tmp.slrm 7.tmp.slrm 8.tmp.slrm
     
     # Extract base PREPROCESSING_ARGS from the generated script (before bad channels are appended)
     base_preprocessing_args=$(grep "^PREPROCESSING_ARGS=" "$job_slurm_script" | head -n 1 | sed 's/PREPROCESSING_ARGS=//' | tr -d '"')

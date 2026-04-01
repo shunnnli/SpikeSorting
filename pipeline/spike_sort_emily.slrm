@@ -14,7 +14,7 @@
 # ================================
 # Run on Kempner cluster with this command (tmux recommended for running in background):
 # tmux new -s spikesort
-# pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort.slrm username
+# pipeline/shun_spikesort_pipeline.sh pipeline/spike_sort_emily.slrm username
 # # detach with:  Ctrl-b d (both mac and windows)
 # # reattach later: tmux attach -t spikesort
 # ================================
@@ -115,8 +115,10 @@ export BAD_CHANNELS
 # PREPROCESSING_ARGS="--denoising destripe --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP}"
 # PREPROCESSING_ARGS="--denoising destripe --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP} --no-remove-bad-channels"
 
+# Without bandpass filter option
+# PREPROCESSING_ARGS="--denoising destripe --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP} --no-remove-bad-channels"
 # With bandpass filter option
-PREPROCESSING_ARGS="--denoising destripe --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP} --no-remove-bad-channels"
+PREPROCESSING_ARGS="--denoising destripe --filter-type bandpass --bandpass-freq-min 300 --bandpass-freq-max 6000 --t-start ${EXCLUDE_FIRST_SEC} --t-stop ${T_STOP} --no-remove-bad-channels"
 
 # Append bad channels if provided (only when using custom preprocessing)
 if [ -n "${BAD_CHANNELS}" ]; then
